@@ -75,6 +75,16 @@ public sealed class OptimisationManager
         return job;
     }
 
+    /// <summary>Whether any job is still working (an automatic update waits for this).</summary>
+    public bool HasRunningJobs
+    {
+        get
+        {
+            lock (_gate)
+                return _inFlight.Count > 0;
+        }
+    }
+
     public bool IsRunning(string key)
     {
         lock (_gate)

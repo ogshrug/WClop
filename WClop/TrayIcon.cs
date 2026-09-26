@@ -82,6 +82,8 @@ namespace WClop
             {
                 Font = new Font(menu.Font, FontStyle.Bold),
             });
+            _updateItem = new ToolStripMenuItem("", null, (_, _) => UpdateRequested?.Invoke()) { Visible = false };
+            menu.Items.Add(_updateItem);
             menu.Items.Add(new ToolStripSeparator());
             menu.Items.AddRange(_stateItems.Values.ToArray<ToolStripItem>());
             menu.Items.Add(new ToolStripSeparator());
@@ -148,6 +150,20 @@ namespace WClop
         public event Action? BatchRequested;
 
         public void RequestSettings() => SettingsRequested?.Invoke();
+
+        private readonly ToolStripMenuItem _updateItem;
+
+        /// <summary>The "Install WClop x.y.z" menu item was clicked.</summary>
+        public event Action? UpdateRequested;
+
+        /// <summary>Offers a new version in the menu (null hides it), and says so once.</summary>
+        public void ShowUpdate(string? version, bool announce)
+        {
+            _updateItem.Visible = version is not null;
+            _updateItem.Text = version is null ? "" : $"Install WClop {version}…";
+            if (version is not null && announce)
+                _notifyIcon.ShowBalloonTip(5000, "WClop", $"WClop {version} is available. Install it from the tray menu or Settings → General.", ToolTipIcon.Info);
+        }
 
         public void ShowNotice(string message) => _notifyIcon.ShowBalloonTip(3000, "WClop", message, ToolTipIcon.Info);
 

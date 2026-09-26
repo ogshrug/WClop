@@ -179,6 +179,57 @@ namespace WClop.Settings
                 ScheduleApply();
         }
 
+        private Updates.Updater? _updater;
+
+        /// <summary>The app's updater, for Settings → General → Updates.</summary>
+        internal Updates.Updater? Updater
+        {
+            set
+            {
+                if (_updater is not null)
+                    _updater.Changed -= OnUpdaterChanged;
+                _updater = value;
+                if (value is not null)
+                {
+                    value.Changed += OnUpdaterChanged;
+                    Closed += (_, _) => value.Changed -= OnUpdaterChanged;
+                }
+
+                ShowUpdateState();
+            }
+        }
+
+        private void OnUpdaterChanged() => Dispatcher.BeginInvoke(ShowUpdateState);
+
+        private void ShowUpdateState()
+        {
+            var updater = _updater;
+            CheckUpdatesButton.IsEnabled = updater is { IsBusy: false };
+            UpdateStatusText.Text = updater?.Status is { Length: > 0 } status ? status : $"You have WClop {AppPaths.Version}.";
+            UpdateProgress.Visibility = updater?.Progress is not null ? Visibility.Visible : Visibility.Collapsed;
+            UpdateProgress.Value = updater?.Progress ?? 0;
+
+            var update = updater?.Available;
+            InstallUpdateButton.Visibility = update is not null && Updates.Updater.IsInstalledCopy ? Visibility.Visible : Visibility.Collapsed;
+            InstallUpdateButton.IsEnabled = updater is { IsBusy: false };
+            InstallUpdateButton.Content = update is null ? "" : $"Download and install {update.Version}";
+            ReleaseNotesText.Visibility = update is not null ? Visibility.Visible : Visibility.Collapsed;
+            if (update is not null)
+                ReleaseNotesLink.NavigateUri = update.ReleasePage;
+        }
+
+        private async void CheckUpdates_Click(object sender, RoutedEventArgs e)
+        {
+            if (_updater is not null)
+                await _updater.CheckAsync(manual: true);
+        }
+
+        private async void InstallUpdate_Click(object sender, RoutedEventArgs e)
+        {
+            if (_updater is not null)
+                await _updater.InstallAsync();
+        }
+
         /// <summary>Runs a saved pipeline on a file, for "Try it on a file…".</summary>
         public Action<string, string>? TryPipeline
         {

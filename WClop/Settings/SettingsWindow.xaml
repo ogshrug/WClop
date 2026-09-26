@@ -45,6 +45,20 @@
                     <TextBlock Style="{StaticResource Hint}"
                                Text="On Windows 11 the right-click entry is under &quot;Show more options&quot;. Right-clicking a folder, or many files, opens batch mode." />
 
+                    <TextBlock Style="{StaticResource Section}" Text="Updates" />
+                    <CheckBox x:Name="CheckUpdatesBox" Content="Check for new versions automatically" IsChecked="{Binding Updates.CheckAutomatically}" />
+                    <CheckBox Content="Install new versions automatically" Margin="0,6,0,0" IsChecked="{Binding Updates.InstallAutomatically}"
+                              IsEnabled="{Binding IsChecked, ElementName=CheckUpdatesBox}" />
+                    <WrapPanel Margin="0,8,0,0">
+                        <Button x:Name="CheckUpdatesButton" Content="Check now" Padding="12,4" Margin="0,0,8,4" Click="CheckUpdates_Click" />
+                        <Button x:Name="InstallUpdateButton" Padding="12,4" Margin="0,0,8,4" Visibility="Collapsed" Click="InstallUpdate_Click" />
+                    </WrapPanel>
+                    <ProgressBar x:Name="UpdateProgress" Height="4" Margin="0,4,0,0" Maximum="1" Visibility="Collapsed" />
+                    <TextBlock x:Name="UpdateStatusText" Style="{StaticResource Hint}" />
+                    <TextBlock x:Name="ReleaseNotesText" Style="{StaticResource Hint}" Visibility="Collapsed">
+                        <Hyperlink x:Name="ReleaseNotesLink" RequestNavigate="Link_RequestNavigate">What's new in this version</Hyperlink>
+                    </TextBlock>
+
                     <TextBlock Style="{StaticResource Section}" Text="Working folder" />
                     <TextBlock Style="{StaticResource Hint}"
                                Text="Optimised clipboard images, backups of originals and temporary files live here. Changing it takes effect after restarting WClop." />

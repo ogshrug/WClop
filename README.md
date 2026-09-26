@@ -43,6 +43,8 @@ Download `WClop-<version>-x64.msi` from [Releases](https://github.com/ogshrug/WC
 
 The installer isn't code-signed yet, so SmartScreen may say *Windows protected your PC*: choose **More info → Run anyway**. Each release lists the installer's SHA-256 checksum.
 
+WClop keeps itself up to date: it checks for new versions and installs them from *Settings → General → Updates* (or automatically, if you turn that on).
+
 Uninstall from *Settings → Apps*; it removes everything it added.
 
 ## Build from source

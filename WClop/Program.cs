@@ -145,6 +145,14 @@ namespace WClop
 
             dropZone.PositionChanged += ApplySettings;
 
+            // New versions from GitHub (installed copies install them; dev builds only check).
+            using var updater = new Updates.Updater(settings, () => settingsStore.Save(settings), paths, manager);
+            updater.Found += update => app.Dispatcher.BeginInvoke(() => tray.ShowUpdate(update.Version, announce: true));
+            updater.Changed += () => app.Dispatcher.BeginInvoke(() =>
+                tray.ShowUpdate(updater.Available is { } u && Updates.Updater.IsInstalledCopy ? u.Version : null, announce: false));
+            tray.UpdateRequested += () => _ = updater.InstallAsync();
+            updater.Start();
+
             SettingsWindow? settingsWindow = null;
             dropZone.PositionChanged += () => settingsWindow?.RefreshDropZonePosition();
             tray.BatchRequested += () =>
@@ -164,6 +172,7 @@ namespace WClop
 
                 settingsWindow = new SettingsWindow(settings, paths, settingsStore, hotkeys, ApplySettings, dropZone.StartPositioning);
                 settingsWindow.TryPipeline = actions.RunPipelineOnFile;
+                settingsWindow.Updater = updater;
                 settingsWindow.Closed += (_, _) => settingsWindow = null;
                 settingsWindow.Show();
                 settingsWindow.Activate();

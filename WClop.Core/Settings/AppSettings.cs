@@ -14,6 +14,19 @@ public sealed class AppSettings
     public UiSettings Ui { get; set; } = new();
     public HotkeySettings Hotkeys { get; set; } = new();
     public PipelineSettings Pipelines { get; set; } = new();
+    public UpdateSettings Updates { get; set; } = new();
+}
+
+/// <summary>New versions from the GitHub releases (installed copies only).</summary>
+public sealed class UpdateSettings
+{
+    /// <summary>Look for a new version at startup and once a day.</summary>
+    public bool CheckAutomatically { get; set; } = true;
+
+    /// <summary>Download and install a new version as soon as it's found, instead of offering it.</summary>
+    public bool InstallAutomatically { get; set; }
+
+    public DateTime? LastCheckedUtc { get; set; }
 }
 
 /// <summary>Saved pipelines and where they run automatically (project.md §19).</summary>

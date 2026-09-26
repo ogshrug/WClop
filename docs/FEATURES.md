@@ -19,7 +19,8 @@ Everything WClop does, how it behaves, and the settings that change it. Defaults
 - [Backups, restore and safety](#backups-restore-and-safety)
 - [Tray icon](#tray-icon)
 - [Settings window](#settings-window)
-- [Installer and updates](#installer-and-updates)
+- [Updates](#updates)
+- [Installer](#installer)
 - [Privacy](#privacy)
 
 ---
@@ -323,7 +324,7 @@ The menu has:
 
 Changes apply as you make them.
 
-- **General:** start when you sign in, Explorer menu, Send To, working folder, cleanup interval, version.
+- **General:** start when you sign in, Explorer menu, Send To, updates, working folder, cleanup interval, version.
 - **Clipboard:** what to optimise, ignored apps (pick from running apps), extra formats to leave alone, clipboard history, Remote Desktop.
 - **Watched folders:** folders per kind, limits, skipped formats, quiet folders.
 - **Compression:** factor slider, video tier and encoder, fps cap, audio, PDF DPI, automatic conversions, metadata.
@@ -334,13 +335,30 @@ Changes apply as you make them.
 
 Settings are stored in `%APPDATA%\WClop\settings.json`.
 
-## Installer and updates
+## Updates
+
+WClop looks for a new version in its GitHub releases at startup and once a day (*Check for new versions automatically*, **on**).
+
+- **When one is found:** a notification appears, the tray menu gets an *Install WClop x.y.z…* item, and *Settings → General → Updates* shows the new version with a link to what's new and a **Download and install** button.
+- **Installing:**
+  - the installer is downloaded and checked against the release's SHA-256 before it runs;
+  - WClop closes, the new version is installed over it and starts again;
+  - your settings, and your choices for start at sign-in and the Explorer menu, are kept.
+- **Install new versions automatically** (off) installs as soon as an update is found, waiting until no jobs are running.
+- **Check now** checks straight away.
+- Only a copy installed with the installer updates itself. A copy run from anywhere else points you to the release page instead.
+
+## Installer
 
 - **Per user:** no administrator rights needed. It installs to `%LOCALAPPDATA%\Programs\WClop`, adds a Start menu entry, puts `wclop` on your PATH, and sets up start at sign-in, the Explorer menu and Send To.
 - **Silent installs** (`msiexec /i WClop.msi /qn`) accept `LAUNCHATLOGIN=0`, `EXPLORERMENU=0` and `LAUNCHAPP=0`.
-- **Updating:** install the newer MSI. The running WClop is closed, updated and started again, and your settings are kept.
+- **Updating:** WClop can do it for you (see [Updates](#updates)), or install the newer MSI yourself. The running WClop is closed, updated and started again, and your settings are kept.
 - **Uninstalling** (Settings → Apps) removes the program, shortcuts, PATH entry, Explorer menu, Send To and start at sign-in. Your settings and working folder stay in `%APPDATA%\WClop` and `%LOCALAPPDATA%\WClop`; delete them by hand for a completely clean removal.
 
 ## Privacy
 
-WClop works entirely on your PC. It sends nothing anywhere and has no telemetry. The only network access is downloading an image from a link you asked it to optimise.
+WClop works entirely on your PC and has no telemetry. It only goes online to:
+
+- check GitHub for a new version (the request carries nothing about you or your files; turn it off under Updates);
+- download an update you chose to install;
+- download an image from a link you asked it to optimise.
