@@ -67,6 +67,10 @@ New-Item -ItemType Directory -Force $cli | Out-Null
 Set-Content (Join-Path $cli 'wclop.cmd') "@`"%~dp0..\wclop-cli.exe`" %*`r`n@exit /b %ERRORLEVEL%" -Encoding ascii -NoNewline
 if (-not (Get-Content (Join-Path $publish 'WClop.runtimeconfig.json') -Raw).Contains('WindowsDesktop')) { throw 'WClop.exe was overwritten' }
 
+# Licence texts travel with the program (GPL: the licence and the bundled tools' notices).
+Copy-Item (Join-Path $root 'LICENSE') (Join-Path $publish 'LICENSE.txt')
+Copy-Item (Join-Path $root 'THIRD-PARTY-NOTICES.md') (Join-Path $publish 'THIRD-PARTY-NOTICES.md')
+
 Write-Host '== Tools'
 $publishTools = Join-Path $publish 'tools'
 Copy-Item $tools $publishTools -Recurse
