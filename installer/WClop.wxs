@@ -1,0 +1,88 @@
+<!--
+  WClop installer (WiX 5, built by scripts/package.ps1).
+  Per-user: installs to %LOCALAPPDATA%\Programs\WClop without admin rights, like most tray tools.
+  - Start menu shortcut, the wclop command on the user's PATH (cli\wclop.cmd → wclop-cli.exe), start at sign-in (on by default, LAUNCHATLOGIN=0 to skip)
+  - Explorer "Optimise with WClop" + Send To (on by default, EXPLORERMENU=0 to skip), removed on uninstall
+  - Asks a running WClop to quit before files are replaced, and starts it after installing (LAUNCHAPP=0 to skip)
+-->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Package Name="WClop"
+           Manufacturer="WClop"
+           Version="$(Version)"
+           UpgradeCode="BCCB4DB4-A56A-4483-B1E1-2630E472647A"
+           Scope="perUser"
+           Compressed="yes">
+
+    <MajorUpgrade DowngradeErrorMessage="A newer version of WClop is already installed." />
+    <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
+
+    <Icon Id="WClop.ico" SourceFile="$(IconPath)" />
+    <Property Id="ARPPRODUCTICON" Value="WClop.ico" />
+    <Property Id="ARPNOMODIFY" Value="1" />
+    <Property Id="ARPNOREPAIR" Value="1" />
+    <Property Id="ARPCOMMENTS" Value="Optimises images, videos, PDFs and audio as you copy, drop and save them." />
+
+    <Property Id="LAUNCHATLOGIN" Value="1" />
+    <Property Id="EXPLORERMENU" Value="1" />
+    <Property Id="LAUNCHAPP" Value="1" />
+
+    <StandardDirectory Id="LocalAppDataFolder">
+      <Directory Id="ProgramsDir" Name="Programs">
+        <Directory Id="INSTALLFOLDER" Name="WClop" />
+      </Directory>
+    </StandardDirectory>
+    <StandardDirectory Id="ProgramMenuFolder" />
+
+    <!-- Everything dotnet publish produced, plus tools\ (debug symbols left out). -->
+    <ComponentGroup Id="AppFiles" Directory="INSTALLFOLDER">
+      <Files Include="$(PublishDir)\**">
+        <Exclude Files="$(PublishDir)\**.pdb" />
+      </Files>
+    </ComponentGroup>
+
+    <ComponentGroup Id="UserEntries" Directory="INSTALLFOLDER">
+      <Component Id="Shortcut" Directory="ProgramMenuFolder">
+        <Shortcut Id="StartMenuShortcut" Name="WClop" Description="Optimise images, videos, PDFs and audio"
+                  Target="[INSTALLFOLDER]WClop.exe" WorkingDirectory="INSTALLFOLDER" Icon="WClop.ico" />
+        <RegistryValue Root="HKCU" Key="Software\WClop" Name="StartMenuShortcut" Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+
+      <Component Id="InstallInfo">
+        <RegistryValue Root="HKCU" Key="Software\WClop" Name="InstallDir" Type="string" Value="[INSTALLFOLDER]" KeyPath="yes" />
+        <!-- "wclop" for new terminals: only the cli folder (wclop.cmd) goes on PATH, never WClop.exe itself. -->
+        <Environment Id="PathEntry" Name="PATH" Value="[INSTALLFOLDER]cli" Part="last" Action="set" System="no" />
+        <RemoveFolder Id="RemoveInstallFolder" Directory="INSTALLFOLDER" On="uninstall" />
+        <RemoveFolder Id="RemoveProgramsDir" Directory="ProgramsDir" On="uninstall" />
+      </Component>
+
+      <!-- Same value WClop writes from Settings → General, so the checkbox there shows it ticked. -->
+      <Component Id="StartAtSignIn" Condition="LAUNCHATLOGIN = 1">
+        <RegistryValue Root="HKCU" Key="Software\Microsoft\Windows\CurrentVersion\Run" Name="WClop" Type="string"
+                       Value="&quot;[INSTALLFOLDER]WClop.exe&quot;" KeyPath="yes" />
+      </Component>
+    </ComponentGroup>
+
+    <Feature Id="Main" Title="WClop">
+      <ComponentGroupRef Id="AppFiles" />
+      <ComponentGroupRef Id="UserEntries" />
+    </Feature>
+
+    <!-- A running WClop holds its files; ask it to quit first (upgrade, uninstall). Nothing to do on a fresh install. -->
+    <CustomAction Id="QuitRunning" Directory="INSTALLFOLDER" ExeCommand="&quot;[INSTALLFOLDER]WClop.exe&quot; --quit"
+                  Execute="immediate" Return="ignore" />
+    <!-- Explorer menu, Send To and start-at-sign-in are written by WClop itself, so it takes them out again. -->
+    <CustomAction Id="Unregister" Directory="INSTALLFOLDER" ExeCommand="&quot;[INSTALLFOLDER]WClop.exe&quot; --unregister"
+                  Execute="deferred" Impersonate="yes" Return="ignore" />
+    <CustomAction Id="Register" Directory="INSTALLFOLDER" ExeCommand="&quot;[INSTALLFOLDER]WClop.exe&quot; --register"
+                  Execute="immediate" Return="ignore" />
+    <CustomAction Id="LaunchApp" Directory="INSTALLFOLDER" ExeCommand="&quot;[INSTALLFOLDER]WClop.exe&quot;"
+                  Execute="immediate" Return="asyncNoWait" />
+
+    <InstallExecuteSequence>
+      <Custom Action="QuitRunning" Before="InstallValidate" Condition="Installed OR WIX_UPGRADE_DETECTED" />
+      <Custom Action="Unregister" Before="RemoveFiles" Condition="REMOVE ~= &quot;ALL&quot; AND NOT UPGRADINGPRODUCTCODE" />
+      <Custom Action="Register" After="InstallFinalize" Condition="NOT REMOVE AND EXPLORERMENU = 1" />
+      <Custom Action="LaunchApp" After="Register" Condition="NOT REMOVE AND LAUNCHAPP = 1" />
+    </InstallExecuteSequence>
+  </Package>
+</Wix>

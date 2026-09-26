@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>WClop.Cli</RootNamespace>
+    <AssemblyName>wclop</AssemblyName>
+    <!-- Packaging names it wclop-cli: it sits next to WClop.exe, and Windows file names ignore case. -->
+    <AssemblyName Condition="'$(WClopCliAssemblyName)' != ''">$(WClopCliAssemblyName)</AssemblyName>
+    <ApplicationIcon>..\WClop\Assets\WClop.ico</ApplicationIcon>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\WClop.Core\WClop.Core.csproj" />
+  </ItemGroup>
+
+</Project>

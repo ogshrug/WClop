@@ -1,0 +1,142 @@
+<Window x:Class="WClop.Results.ResultsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="WClop results"
+        Width="360"
+        SizeToContent="Height"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
+        ResizeMode="NoResize"
+        Topmost="True"
+        ShowInTaskbar="False"
+        ShowActivated="False"
+        FontFamily="Segoe UI"
+        FontSize="12">
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="Visible" />
+
+        <SolidColorBrush x:Key="CardBackground" Color="#F2202124" />
+        <SolidColorBrush x:Key="PrimaryText" Color="#FFF3F3F3" />
+        <SolidColorBrush x:Key="SecondaryText" Color="#FFA8A8A8" />
+        <SolidColorBrush x:Key="SuccessText" Color="#FF7FD08A" />
+        <SolidColorBrush x:Key="ErrorText" Color="#FFFF8A80" />
+
+        <Style x:Key="IconButton" TargetType="Button">
+            <Setter Property="FontFamily" Value="Segoe Fluent Icons, Segoe MDL2 Assets" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Foreground" Value="{StaticResource SecondaryText}" />
+            <Setter Property="Width" Value="26" />
+            <Setter Property="Height" Value="26" />
+            <Setter Property="Margin" Value="0,0,0,2" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Chrome" CornerRadius="6" Background="Transparent">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Chrome" Property="Background" Value="#33FFFFFF" />
+                                <Setter Property="Foreground" Value="{StaticResource PrimaryText}" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.35" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
+    <ItemsControl x:Name="Cards" Margin="10">
+        <ItemsControl.ItemTemplate>
+            <DataTemplate>
+                <Border CornerRadius="10"
+                        Background="{StaticResource CardBackground}"
+                        Padding="10"
+                        Margin="0,8,0,0"
+                        MouseEnter="Card_MouseEnter"
+                        MouseLeave="Card_MouseLeave">
+                    <Border.Effect>
+                        <DropShadowEffect BlurRadius="14" ShadowDepth="2" Opacity="0.4" />
+                    </Border.Effect>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="72" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <!-- Thumbnail: drag it out into any app. -->
+                        <Border Grid.Column="0"
+                                Width="72" Height="72"
+                                CornerRadius="6"
+                                Background="#22FFFFFF"
+                                Cursor="Hand"
+                                ToolTip="Drag into another app"
+                                PreviewMouseLeftButtonDown="Thumbnail_MouseDown"
+                                PreviewMouseMove="Thumbnail_MouseMove">
+                            <Image Source="{Binding Thumbnail}" Stretch="Uniform" Margin="3"
+                                   RenderOptions.BitmapScalingMode="HighQuality" />
+                        </Border>
+
+                        <StackPanel Grid.Column="1" Margin="10,0,6,0" VerticalAlignment="Center">
+                            <TextBlock Text="{Binding Title}"
+                                       Foreground="{StaticResource PrimaryText}"
+                                       FontWeight="SemiBold"
+                                       TextTrimming="CharacterEllipsis" />
+                            <TextBlock x:Name="StatusText"
+                                       Text="{Binding Status}"
+                                       Foreground="{StaticResource SecondaryText}"
+                                       TextWrapping="Wrap"
+                                       Margin="0,2,0,0" />
+                            <TextBlock Text="{Binding SizeText}"
+                                       Foreground="{StaticResource SuccessText}"
+                                       FontWeight="SemiBold"
+                                       Margin="0,4,0,0"
+                                       Visibility="{Binding HasSizeText, Converter={StaticResource Visible}}" />
+                            <TextBlock Text="{Binding Dimensions}"
+                                       Foreground="{StaticResource SecondaryText}"
+                                       FontSize="11"
+                                       Margin="0,2,0,0"
+                                       Visibility="{Binding HasDimensions, Converter={StaticResource Visible}}" />
+                            <ProgressBar IsIndeterminate="{Binding IsProgressIndeterminate, Mode=OneWay}" Value="{Binding ProgressPercent, Mode=OneWay}" Maximum="100"
+                                         Height="3"
+                                         Margin="0,6,0,0"
+                                         BorderThickness="0"
+                                         Background="#33FFFFFF"
+                                         Foreground="#FF5B9BEA"
+                                         Visibility="{Binding IsRunning, Converter={StaticResource Visible}}" />
+                        </StackPanel>
+
+                        <!-- Two columns of small buttons keep the card compact. -->
+                        <WrapPanel Grid.Column="2" Width="56" VerticalAlignment="Top">
+                            <Button Style="{StaticResource IconButton}" Content="&#xE711;" ToolTip="Dismiss" AutomationProperties.Name="Dismiss"
+                                    Click="Dismiss_Click" />
+                            <Button Style="{StaticResource IconButton}" Content="&#xE7A7;" ToolTip="Restore original" AutomationProperties.Name="Restore original"
+                                    IsEnabled="{Binding CanRestore}" Click="Restore_Click" />
+                            <Button Style="{StaticResource IconButton}" Content="&#xE73F;" ToolTip="Fit under a size…" AutomationProperties.Name="Fit under a size"
+                                    IsEnabled="{Binding CanFit}" Click="Fit_Click" />
+                            <Button Style="{StaticResource IconButton}" Content="&#xE8AB;" ToolTip="Convert to…" AutomationProperties.Name="Convert to"
+                                    IsEnabled="{Binding CanConvert}" Click="Convert_Click" />
+                            <Button Style="{StaticResource IconButton}" Content="&#xE838;" ToolTip="Show in Explorer" AutomationProperties.Name="Show in Explorer"
+                                    IsEnabled="{Binding CanShowFile}" Click="ShowInFolder_Click" />
+                            <Button Style="{StaticResource IconButton}" Content="&#xE945;" ToolTip="Run a pipeline…" AutomationProperties.Name="Run a pipeline"
+                                    IsEnabled="{Binding CanRunPipeline}" Click="RunPipeline_Click"
+                                    Visibility="{Binding HasPipelines, Converter={StaticResource Visible}}" />
+                        </WrapPanel>
+                    </Grid>
+                </Border>
+                <DataTemplate.Triggers>
+                    <DataTrigger Binding="{Binding IsFailed}" Value="True">
+                        <Setter TargetName="StatusText" Property="Foreground" Value="{StaticResource ErrorText}" />
+                    </DataTrigger>
+                </DataTemplate.Triggers>
+            </DataTemplate>
+        </ItemsControl.ItemTemplate>
+    </ItemsControl>
+</Window>

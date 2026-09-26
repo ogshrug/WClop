@@ -1,0 +1,89 @@
+name: Release
+
+# Push a tag like v0.13.0 to build the installer and publish a GitHub release with it:
+#   git tag v0.13.0 && git push origin v0.13.0
+# Optional code signing: add repository secrets WCLOP_SIGNING_CERT (the .pfx, base64) and
+# WCLOP_SIGNING_PASSWORD. Without them the installer is built unsigned.
+
+on:
+  push:
+    tags: ['v*.*.*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to release (e.g. v0.13.0); it must already exist'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    env:
+      TAG: ${{ github.event.inputs.tag || github.ref_name }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Version from the tag
+        shell: pwsh
+        run: |
+          if ($env:TAG -notmatch '^v(\d+\.\d+\.\d+)$') { throw "Tag '$env:TAG' isn't like v1.2.3" }
+          "VERSION=$($Matches[1])" >> $env:GITHUB_ENV
+
+      - name: Cache tools
+        uses: actions/cache@v4
+        with:
+          path: tools
+          key: tools-${{ runner.os }}-${{ hashFiles('scripts/fetch-tools.ps1') }}
+
+      - name: Fetch tools
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: ./scripts/fetch-tools.ps1
+
+      - name: Import signing certificate
+        shell: pwsh
+        env:
+          CERT: ${{ secrets.WCLOP_SIGNING_CERT }}
+          CERT_PASSWORD: ${{ secrets.WCLOP_SIGNING_PASSWORD }}
+        run: |
+          if (-not $env:CERT) { Write-Host 'No signing certificate configured; building unsigned.'; exit 0 }
+          $pfx = Join-Path $env:RUNNER_TEMP 'signing.pfx'
+          [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:CERT))
+          $password = ConvertTo-SecureString $env:CERT_PASSWORD -AsPlainText -Force
+          $cert = Import-PfxCertificate -FilePath $pfx -CertStoreLocation Cert:\CurrentUser\My -Password $password
+          Remove-Item $pfx
+          "WCLOP_SIGN_THUMBPRINT=$($cert.Thumbprint)" >> $env:GITHUB_ENV
+
+      - name: Build installer (runs the tests first)
+        shell: pwsh
+        run: ./scripts/package.ps1 -Version $env:VERSION
+
+      - name: Checksum
+        shell: pwsh
+        run: |
+          $msi = "artifacts/WClop-$env:VERSION-x64.msi"
+          $hash = (Get-FileHash $msi -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  WClop-$env:VERSION-x64.msi" | Set-Content "$msi.sha256" -Encoding ascii
+
+      - name: Publish release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $files = "artifacts/WClop-$env:VERSION-x64.msi", "artifacts/WClop-$env:VERSION-x64.msi.sha256"
+          gh release view $env:TAG *> $null
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload $env:TAG @files --clobber
+          } else {
+            gh release create $env:TAG @files --title "WClop $env:VERSION" --generate-notes
+          }

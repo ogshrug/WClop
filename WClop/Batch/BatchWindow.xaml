@@ -1,0 +1,58 @@
+<Window x:Class="WClop.Batch.BatchWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="WClop Batch"
+        Width="880" Height="600" MinWidth="620" MinHeight="380"
+        WindowStartupLocation="CenterScreen"
+        ThemeMode="System"
+        FontSize="13">
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- Totals -->
+        <StackPanel Grid.Row="0">
+            <TextBlock x:Name="Heading" FontSize="18" FontWeight="SemiBold" Text="Collecting files…" />
+            <TextBlock x:Name="Summary" Opacity="0.75" Margin="0,4,0,0" />
+        </StackPanel>
+
+        <!-- Options, then actions -->
+        <WrapPanel Grid.Row="1" Margin="0,14,0,10" VerticalAlignment="Center">
+            <TextBlock Text="Compression" VerticalAlignment="Center" Margin="0,0,8,0" />
+            <ComboBox x:Name="PresetBox" Width="200" DisplayMemberPath="Name" Margin="0,0,16,0" />
+            <CheckBox x:Name="KeepOriginalsBox" Content="Keep originals (save copies next to them)" VerticalAlignment="Center" Margin="0,0,16,0" />
+            <CheckBox x:Name="SubfoldersBox" Content="Include subfolders" IsChecked="True" VerticalAlignment="Center" Margin="0,0,16,0"
+                      Click="Subfolders_Click" />
+            <Button x:Name="StartButton" Content="Start" Style="{DynamicResource AccentButtonStyle}" Padding="18,5" Margin="0,0,8,0"
+                    Click="Start_Click" />
+            <Button x:Name="StopButton" Content="Stop" Padding="14,5" Margin="0,0,8,0" IsEnabled="False" Click="Stop_Click" />
+            <Button x:Name="RestoreButton" Content="Restore all" Padding="14,5" Margin="0,0,8,0" IsEnabled="False" Click="Restore_Click" />
+            <Button x:Name="BackupsButton" Content="Open backups" Padding="14,5" IsEnabled="False" Click="Backups_Click" />
+        </WrapPanel>
+
+        <DataGrid x:Name="Files" Grid.Row="2" AutoGenerateColumns="False" IsReadOnly="True" HeadersVisibility="Column"
+                  CanUserResizeRows="False" SelectionMode="Extended" GridLinesVisibility="None">
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="File" Binding="{Binding RelativePath}" Width="*" />
+                <DataGridTextColumn Header="Type" Binding="{Binding Type}" Width="70" />
+                <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="190" SortMemberPath="State" />
+                <DataGridTextColumn Header="Before" Binding="{Binding OldSizeText}" Width="90" SortMemberPath="OldSize" />
+                <DataGridTextColumn Header="After" Binding="{Binding NewSizeText}" Width="90" SortMemberPath="NewSize" />
+                <DataGridTextColumn Header="Saved" Binding="{Binding SavedText}" Width="70" SortMemberPath="Saved" />
+            </DataGrid.Columns>
+        </DataGrid>
+
+        <Grid Grid.Row="3" Margin="0,12,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <ProgressBar x:Name="Overall" Height="6" Maximum="1" VerticalAlignment="Center" />
+            <TextBlock x:Name="Footer" Grid.Column="1" Margin="12,0,0,0" Opacity="0.75" VerticalAlignment="Center" />
+        </Grid>
+    </Grid>
+</Window>

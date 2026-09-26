@@ -1,0 +1,46 @@
+<Window x:Class="WClop.DropZone.DropZoneWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="WClop drop zone"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
+        ResizeMode="NoResize"
+        Topmost="True"
+        ShowInTaskbar="False"
+        ShowActivated="False"
+        AllowDrop="True"
+        FontFamily="Segoe UI">
+    <!-- The window covers the tab's fully open size; only the tab itself is visible or hit-testable. -->
+    <Grid>
+        <Border x:Name="Tab"
+                Background="#B3202124"
+                BorderBrush="#55FFFFFF"
+                BorderThickness="1"
+                ClipToBounds="True"
+                Cursor="Arrow"
+                MouseLeftButtonDown="Tab_MouseDown"
+                MouseMove="Tab_MouseMove"
+                MouseLeftButtonUp="Tab_MouseUp">
+            <Grid>
+                <!-- Peeking: just an icon. -->
+                <TextBlock x:Name="PeekIcon"
+                           Text="&#xE896;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="16"
+                           Foreground="#E6FFFFFF" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                <!-- Open: icon and words. -->
+                <StackPanel x:Name="OpenContent" Opacity="0" VerticalAlignment="Center" HorizontalAlignment="Center" Margin="12">
+                    <TextBlock Text="&#xE896;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="22"
+                               Foreground="#FFFFFFFF" HorizontalAlignment="Center" />
+                    <TextBlock x:Name="Heading" Text="Drop to optimise" Foreground="#FFFFFFFF" FontSize="14" FontWeight="SemiBold"
+                               HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap" Margin="0,6,0,0" />
+                    <TextBlock x:Name="Detail" Text="Alt keeps the original · Ctrl for aggressive" Foreground="#CCFFFFFF"
+                               FontSize="11" HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap" Margin="0,3,0,0" />
+                    <!-- Which compression preset is selected; scroll to change it. -->
+                    <TextBlock x:Name="PresetDots" Foreground="#E6FFFFFF" FontSize="9" HorizontalAlignment="Center" Margin="0,6,0,0" />
+                    <TextBlock x:Name="PresetHint" Text="Scroll to change" Foreground="#99FFFFFF" FontSize="10"
+                               HorizontalAlignment="Center" Margin="0,2,0,0" />
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

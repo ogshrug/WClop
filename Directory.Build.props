@@ -1,0 +1,14 @@
+<Project>
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <!-- Packaging (scripts/package.ps1) stamps the real version with -p:Version=… -->
+    <Version>0.12.0</Version>
+    <Product>WClop</Product>
+    <Company>WClop</Company>
+    <Copyright>WClop contributors</Copyright>
+  </PropertyGroup>
+</Project>

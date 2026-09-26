@@ -1,0 +1,399 @@
+<Window x:Class="WClop.Settings.SettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:WClop.Settings"
+        Title="WClop Settings"
+        Width="680" Height="600" MinWidth="560" MinHeight="420"
+        WindowStartupLocation="CenterScreen"
+        ThemeMode="System"
+        FontSize="13">
+    <Window.Resources>
+        <local:BytesConverter x:Key="Kilobytes" Unit="1024" />
+        <local:BytesConverter x:Key="Megabytes" Unit="1048576" />
+        <local:CommaListConverter x:Key="CommaList" />
+
+        <Style x:Key="Section" TargetType="TextBlock">
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="Margin" Value="0,18,0,6" />
+        </Style>
+        <Style x:Key="Hint" TargetType="TextBlock">
+            <Setter Property="Opacity" Value="0.7" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="Margin" Value="0,2,0,6" />
+        </Style>
+        <Style x:Key="Label" TargetType="TextBlock">
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Margin" Value="0,4,12,4" />
+        </Style>
+        <Style x:Key="Number" TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
+            <Setter Property="Width" Value="90" />
+            <Setter Property="HorizontalAlignment" Value="Left" />
+            <Setter Property="Margin" Value="0,3" />
+        </Style>
+    </Window.Resources>
+
+    <TabControl Margin="8">
+        <!-- General -->
+        <TabItem Header="General">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <StackPanel Margin="16,12,16,16">
+                    <CheckBox x:Name="LaunchAtLoginBox" Content="Start WClop when I sign in" />
+                    <CheckBox x:Name="ContextMenuBox" Content="Add &quot;Optimise with WClop&quot; to Explorer's right-click menu" Margin="0,6,0,0" />
+                    <CheckBox x:Name="SendToBox" Content="Add WClop to the Send to menu" Margin="0,6,0,0" />
+                    <TextBlock Style="{StaticResource Hint}"
+                               Text="On Windows 11 the right-click entry is under &quot;Show more options&quot;. Right-clicking a folder, or many files, opens batch mode." />
+
+                    <TextBlock Style="{StaticResource Section}" Text="Working folder" />
+                    <TextBlock Style="{StaticResource Hint}"
+                               Text="Optimised clipboard images, backups of originals and temporary files live here. Changing it takes effect after restarting WClop." />
+                    <DockPanel>
+                        <Button DockPanel.Dock="Right" Content="Browse…" Margin="8,0,0,0" Padding="12,4" Click="BrowseWorkDir_Click" />
+                        <TextBox x:Name="WorkDirBox" Text="{Binding Files.WorkDir, UpdateSourceTrigger=LostFocus}" />
+                    </DockPanel>
+
+                    <TextBlock Style="{StaticResource Section}" Text="Clean up old working files" />
+                    <ComboBox x:Name="CleanupBox" Width="220" HorizontalAlignment="Left"
+                              SelectedValuePath="Value" DisplayMemberPath="Label"
+                              SelectedValue="{Binding Files.CleanupInterval}" />
+                    <TextBlock Style="{StaticResource Hint}"
+                               Text="Includes the backups used by Restore, so an original can only be restored within this time. Batch backups are never deleted." />
+
+                    <TextBlock Style="{StaticResource Section}" Text="Files" />
+                    <WrapPanel>
+                        <Button Content="Open working folder" Padding="12,4" Margin="0,0,8,8" Click="OpenWorkDir_Click" />
+                        <Button Content="Open settings file" Padding="12,4" Margin="0,0,8,8" Click="OpenSettingsFile_Click" />
+                        <Button Content="Open log" Padding="12,4" Margin="0,0,8,8" Click="OpenLog_Click" />
+                    </WrapPanel>
+
+                    <TextBlock x:Name="VersionText" Style="{StaticResource Hint}" Margin="0,12,0,0" />
+                    <TextBlock Style="{StaticResource Hint}" Margin="0,0,0,0">
+                        App icon based on <Hyperlink NavigateUri="https://icons8.com/icon/Gr1XbweybhTw/clipboard" RequestNavigate="Link_RequestNavigate">Clipboard</Hyperlink>
+                        by <Hyperlink NavigateUri="https://icons8.com" RequestNavigate="Link_RequestNavigate">Icons8</Hyperlink>.
+                    </TextBlock>
+                </StackPanel>
+            </ScrollViewer>
+        </TabItem>
+
+        <!-- Clipboard -->
+        <TabItem Header="Clipboard">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <StackPanel Margin="16,12,16,16">
+                    <CheckBox Content="Optimise images when they're copied" IsChecked="{Binding Clipboard.Enabled}" />
+                    <CheckBox Content="Also put the optimised file on the clipboard (so chat apps and upload boxes attach a file)"
+                              IsChecked="{Binding Clipboard.CopyImageFilePath}" />
+                    <CheckBox Content="Show optimised images in clipboard history (Win+V)"
+                              IsChecked="{Binding Clipboard.IncludeResultsInClipboardHistory}" />
+                    <CheckBox Content="Optimise image files copied in Explorer (works on a copy; the file isn't changed)"
+                              IsChecked="{Binding Clipboard.OptimiseImagePaths}" />
+                    <CheckBox Content="Ignore clipboards from Remote Desktop and virtual machines"
+                              IsChecked="{Binding Clipboard.IgnoreRemoteClipboard}" />
+                    <CheckBox Content="Keep each copied result as its own card instead of replacing the last one"
+                              IsChecked="{Binding Clipboard.AppendResults}" />
+
+                    <TextBlock Style="{StaticResource Section}" Text="Apps to ignore" />
+                    <TextBlock Style="{StaticResource Hint}" Text="Copies made in these apps are never touched (password managers mark their copies anyway)." />
+                    <DockPanel Margin="0,0,0,6">
+                        <Button DockPanel.Dock="Right" Content="Add" Padding="12,4" Margin="8,0,0,0" Click="AddIgnoredApp_Click" />
+                        <ComboBox x:Name="RunningAppsBox" IsEditable="True" ToolTip="Pick a running app or type an .exe name" />
+                    </DockPanel>
+                    <DockPanel>
+                        <Button DockPanel.Dock="Right" Content="Remove" Padding="12,4" Margin="8,0,0,0" VerticalAlignment="Top" Click="RemoveIgnoredApp_Click" />
+                        <ListBox x:Name="IgnoredAppsList" Height="90" />
+                    </DockPanel>
+
+                    <TextBlock Style="{StaticResource Section}" Text="Advanced" />
+                    <CheckBox Content="Log the formats of every copy (to find apps whose copies should be left alone)"
+                              IsChecked="{Binding Clipboard.LogFormats}" />
+                    <TextBlock Style="{StaticResource Hint}" Text="Extra clipboard formats that mean &quot;leave this copy alone&quot;, comma separated:" />
+                    <TextBox Text="{Binding Clipboard.ExtraDeniedFormats, Converter={StaticResource CommaList}, UpdateSourceTrigger=LostFocus}" />
+                </StackPanel>
+            </ScrollViewer>
+        </TabItem>
+
+        <!-- Watched folders -->
+        <TabItem Header="Watched folders">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <StackPanel Margin="16,12,16,16">
+                    <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                        <TextBlock Style="{StaticResource Label}" Text="Settings for" />
+                        <ComboBox x:Name="WatchKindBox" Width="160" SelectionChanged="WatchKind_Changed">
+                            <ComboBoxItem Content="Images" IsSelected="True" />
+                            <ComboBoxItem Content="Videos" />
+                            <ComboBoxItem Content="PDFs" />
+                            <ComboBoxItem Content="Audio" />
+                        </ComboBox>
+                    </StackPanel>
+                    <TextBlock x:Name="WatchKindNote" Style="{StaticResource Hint}" Visibility="Collapsed"
+                               Text="PDF and audio optimisation aren't built yet; these settings take effect once they are." />
+
+                    <StackPanel x:Name="WatcherPanel">
+                        <CheckBox Content="Optimise new files that appear in these folders" IsChecked="{Binding Enabled}" Margin="0,10,0,4" />
+                        <DockPanel Margin="0,4,0,0">
+                            <StackPanel DockPanel.Dock="Right" Margin="8,0,0,0">
+                                <Button Content="Add…" Padding="12,4" Margin="0,0,0,6" Click="AddFolder_Click" />
+                                <Button Content="Remove" Padding="12,4" Click="RemoveFolder_Click" />
+                            </StackPanel>
+                            <ListBox x:Name="FoldersList" Height="100" SelectionChanged="FoldersList_SelectionChanged" />
+                        </DockPanel>
+                        <CheckBox x:Name="QuietFolderBox" Content="Don't show result cards for the selected folder (still optimised)"
+                                  Margin="0,6,0,0" IsEnabled="False" Checked="QuietFolder_Changed" Unchecked="QuietFolder_Changed" />
+                        <TextBlock Style="{StaticResource Hint}"
+                                   Text="Only files directly in these folders count, not subfolders. A folder on a drive that isn't connected is picked up again when it is. Put a .wclopignore-image file in a folder to exclude files by pattern." />
+
+                        <TextBlock Style="{StaticResource Section}" Text="Limits" />
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition /><RowDefinition /><RowDefinition /><RowDefinition /><RowDefinition /><RowDefinition />
+                            </Grid.RowDefinitions>
+                            <TextBlock Grid.Row="0" Style="{StaticResource Label}" Text="Ignore bursts of more than (files at once)" />
+                            <TextBox Grid.Row="0" Grid.Column="1" Style="{StaticResource Number}" Text="{Binding MaxFilesPerBurst, UpdateSourceTrigger=LostFocus}" />
+                            <TextBlock Grid.Row="1" Style="{StaticResource Label}" Text="Smallest file (KB, 0 = any)" />
+                            <TextBox Grid.Row="1" Grid.Column="1" Style="{StaticResource Number}" Text="{Binding MinSizeBytes, Converter={StaticResource Kilobytes}, UpdateSourceTrigger=LostFocus}" />
+                            <TextBlock Grid.Row="2" Style="{StaticResource Label}" Text="Largest file (MB, 0 = any)" />
+                            <TextBox Grid.Row="2" Grid.Column="1" Style="{StaticResource Number}" Text="{Binding MaxSizeBytes, Converter={StaticResource Megabytes}, UpdateSourceTrigger=LostFocus}" />
+                            <TextBlock Grid.Row="3" Style="{StaticResource Label}" Text="Smallest width and height (px, 0 = any)" />
+                            <TextBox Grid.Row="3" Grid.Column="1" Style="{StaticResource Number}" Text="{Binding MinResolution, UpdateSourceTrigger=LostFocus}" />
+                            <TextBlock Grid.Row="4" Style="{StaticResource Label}" Text="Largest width and height (px, 0 = any)" />
+                            <TextBox Grid.Row="4" Grid.Column="1" Style="{StaticResource Number}" Text="{Binding MaxResolution, UpdateSourceTrigger=LostFocus}" />
+                            <TextBlock Grid.Row="5" Style="{StaticResource Label}" Text="Formats to skip (e.g. tiff, mkv)" />
+                            <TextBox Grid.Row="5" Grid.Column="1" Width="200" HorizontalAlignment="Left" Margin="0,3"
+                                     Text="{Binding SkipFormats, Converter={StaticResource CommaList}, UpdateSourceTrigger=LostFocus}" />
+                        </Grid>
+                    </StackPanel>
+                </StackPanel>
+            </ScrollViewer>
+        </TabItem>
+
+        <!-- Compression -->
+        <TabItem Header="Compression">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <StackPanel Margin="16,12,16,16">
+                    <TextBlock Style="{StaticResource Section}" Text="Images" />
+                    <DockPanel>
+                        <TextBlock x:Name="FactorLabel" DockPanel.Dock="Right" Width="150" Margin="12,0,0,0" VerticalAlignment="Center" />
+                        <Slider x:Name="FactorSlider" Minimum="5" Maximum="100" TickFrequency="5" IsSnapToTickEnabled="False"
+                                SmallChange="1" LargeChange="10" TickPlacement="BottomRight"
+                                Value="{Binding Compression.ImageFactor}" ValueChanged="Factor_Changed" />
+                    </DockPanel>
+                    <TextBlock Style="{StaticResource Hint}"
+                               Text="Higher means smaller files at lower quality. 30 is the normal setting, 64 is &quot;aggressive&quot; (what the A hotkey uses). A result is never kept if it's bigger than the original." />
+
+                    <CheckBox Content="Try both PNG and JPEG and keep whichever is clearly smaller"
+                              IsChecked="{Binding Compression.AdaptiveImageFormat}" />
+                    <TextBlock Style="{StaticResource Hint}" Margin="24,0,0,6"
+                               Text="Photos saved as PNG become JPEG, flat graphics saved as JPEG become PNG, when that saves over 100 KB. Images with transparency stay PNG." />
+                    <CheckBox x:Name="ConvertToJpegBox" Content="Convert HEIC, WebP, AVIF and BMP images to JPEG" Click="Conversions_Click" />
+                    <CheckBox x:Name="ConvertToPngBox" Content="Convert TIFF images to PNG" Click="Conversions_Click" />
+                    <TextBlock Style="{StaticResource Hint}" Margin="24,0,0,0"
+                               Text="Converted copies are saved next to the original. Animated images are never flattened." />
+
+                    <TextBlock Style="{StaticResource Section}" Text="Videos" />
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Style="{StaticResource Label}" Text="Encoder" />
+                        <ComboBox x:Name="VideoTierBox" Width="300" SelectedValuePath="Value" DisplayMemberPath="Label"
+                                  SelectedValue="{Binding Compression.VideoTier}" />
+                    </StackPanel>
+                    <TextBlock x:Name="EncoderStatus" Style="{StaticResource Hint}" Text="Checking which hardware encoder this PC has…" />
+                    <DockPanel Margin="0,4,0,0">
+                        <TextBlock x:Name="VideoFactorLabel" DockPanel.Dock="Right" Width="150" Margin="12,0,0,0" VerticalAlignment="Center" />
+                        <Slider x:Name="VideoFactorSlider" Minimum="5" Maximum="100" TickFrequency="5" TickPlacement="BottomRight"
+                                SmallChange="1" LargeChange="10"
+                                Value="{Binding Compression.VideoFactor}" ValueChanged="VideoFactor_Changed" />
+                    </DockPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                        <CheckBox Content="Limit the frame rate to" IsChecked="{Binding Compression.CapVideoFps}" VerticalAlignment="Center" />
+                        <TextBox Style="{StaticResource Number}" Width="60" Margin="8,0,6,0"
+                                 Text="{Binding Compression.VideoFpsTarget, UpdateSourceTrigger=LostFocus}" />
+                        <TextBlock Text="fps" VerticalAlignment="Center" />
+                    </StackPanel>
+                    <CheckBox Content="Remove audio from videos" IsChecked="{Binding Compression.RemoveAudioFromVideos}" />
+                    <TextBlock Style="{StaticResource Hint}"
+                               Text="Videos come out as H.264 MP4 (MOV, WebM and MPEG are converted). Recordings with a varying frame rate keep every frame, so motion stays smooth." />
+
+                    <TextBlock Style="{StaticResource Section}" Text="PDFs" />
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Style="{StaticResource Label}" Text="Images in PDFs" />
+                        <ComboBox x:Name="PdfModeBox" Width="140" SelectedValuePath="Value" DisplayMemberPath="Label"
+                                  SelectedValue="{Binding Compression.PdfDpiMode}" />
+                        <TextBlock Style="{StaticResource Label}" Text="up to" Margin="12,4,8,4" />
+                        <ComboBox x:Name="PdfDpiBox" Width="120" SelectedValuePath="Value" DisplayMemberPath="Label"
+                                  SelectedValue="{Binding Compression.PdfFixedDpi}" />
+                    </StackPanel>
+                    <TextBlock Style="{StaticResource Hint}"
+                               Text="Adaptive looks at how sharp the images really are and never goes above the limit. 300 DPI means lossless: fonts and streams are compressed, images left alone. Password-protected PDFs are skipped. The − hotkey steps a PDF result down." />
+
+                    <TextBlock Style="{StaticResource Section}" Text="Audio" />
+                    <DockPanel>
+                        <TextBlock x:Name="AudioFactorLabel" DockPanel.Dock="Right" Width="150" Margin="12,0,0,0" VerticalAlignment="Center" />
+                        <Slider x:Name="AudioFactorSlider" Minimum="5" Maximum="100" TickFrequency="5" TickPlacement="BottomRight"
+                                SmallChange="1" LargeChange="10"
+                                Value="{Binding Compression.AudioFactor}" ValueChanged="AudioFactor_Changed" />
+                    </DockPanel>
+                    <TextBlock Style="{StaticResource Hint}"
+                               Text="WAV becomes MP3, FLAC and AIFF become AAC (.m4a). The bitrate is never raised above the original's, and cover art is kept." />
+
+                    <TextBlock Style="{StaticResource Section}" Text="Metadata" />
+                    <CheckBox Content="Remove metadata (camera details, location, editing history)" IsChecked="{Binding Files.StripMetadata}" />
+                    <CheckBox Content="Keep colour profiles when removing metadata" IsChecked="{Binding Files.PreserveColorMetadata}" Margin="24,4,0,4" />
+                    <CheckBox Content="Keep the original file dates" IsChecked="{Binding Files.PreserveDates}" />
+                </StackPanel>
+            </ScrollViewer>
+        </TabItem>
+
+        <!-- Output -->
+        <TabItem Header="Output">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <StackPanel Margin="16,12,16,16">
+                    <TextBlock Style="{StaticResource Section}" Text="When an image in a watched folder is optimised" />
+                    <ComboBox x:Name="PlacementBox" Width="320" HorizontalAlignment="Left"
+                              SelectedValuePath="Value" DisplayMemberPath="Label"
+                              SelectedValue="{Binding Files.Images.Optimised}" SelectionChanged="Template_Changed" />
+                    <TextBlock Style="{StaticResource Hint}" Text="The original is always backed up first, so Restore works either way." />
+
+                    <TextBlock Style="{StaticResource Section}" Text="Name for a copy next to the original" />
+                    <TextBox x:Name="SameFolderTemplateBox" Text="{Binding Files.Images.SameFolderTemplate, UpdateSourceTrigger=PropertyChanged}" TextChanged="Template_Changed" />
+                    <TextBlock x:Name="SameFolderPreview" Style="{StaticResource Hint}" />
+
+                    <TextBlock Style="{StaticResource Section}" Text="Path for a copy in another folder" />
+                    <TextBox x:Name="SpecificFolderTemplateBox" Text="{Binding Files.Images.SpecificFolderTemplate, UpdateSourceTrigger=PropertyChanged}" TextChanged="Template_Changed" />
+                    <TextBlock x:Name="SpecificFolderPreview" Style="{StaticResource Hint}" />
+
+                    <TextBlock Style="{StaticResource Hint}" Margin="0,12,0,0"
+                               Text="%f name · %e extension · %P folder · %y %m %d year, month, day · %n month name · %w weekday · %H %M %S time · %r random · %i counter · / for subfolders" />
+                </StackPanel>
+            </ScrollViewer>
+        </TabItem>
+
+        <!-- Results -->
+        <TabItem Header="Results">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <StackPanel Margin="16,12,16,16">
+                    <CheckBox Content="Show a result card after each optimisation" IsChecked="{Binding Ui.ShowFloatingResults}" Margin="0,10,0,4" />
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Style="{StaticResource Label}" Text="Corner" />
+                        <ComboBox x:Name="CornerBox" Width="160" SelectedValuePath="Value" DisplayMemberPath="Label"
+                                  SelectedValue="{Binding Ui.FloatingResultsCorner}" />
+                    </StackPanel>
+                    <CheckBox Content="Show on the screen the mouse is on" IsChecked="{Binding Ui.FollowCursorScreen}" />
+
+                    <TextBlock Style="{StaticResource Section}" Text="Drop zone" />
+                    <CheckBox Content="Pop out a drop zone from the screen edge while dragging files" IsChecked="{Binding Ui.DropZoneEnabled}" />
+                    <Grid Margin="0,4,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition /><RowDefinition />
+                        </Grid.RowDefinitions>
+                        <TextBlock Style="{StaticResource Label}" Text="Edge" />
+                        <ComboBox x:Name="DropEdgeBox" Grid.Column="1" Width="160" HorizontalAlignment="Left" Margin="0,3"
+                                  SelectedValuePath="Value" DisplayMemberPath="Label"
+                                  SelectedValue="{Binding Ui.DropZoneEdge}" />
+                        <TextBlock Grid.Row="1" Style="{StaticResource Label}" Text="Position along it" />
+                        <Slider Grid.Row="1" Grid.Column="1" Minimum="0" Maximum="100" Margin="0,6" VerticalAlignment="Center"
+                                Value="{Binding Ui.DropZonePosition}" SmallChange="1" LargeChange="10" />
+                    </Grid>
+                    <Button Content="Move it on screen…" HorizontalAlignment="Left" Padding="12,4" Margin="0,6,0,0" Click="PositionDropZone_Click" />
+                    <TextBlock Style="{StaticResource Hint}"
+                               Text="It stays hidden until you drag something, then peeks out of the edge. Drop image files, videos, PDFs, audio, folders, images from a browser or Outlook, or links. While holding files over it, scroll to pick Normal, Aggressive, Maximum, Half size or Gentle. Hold Alt to keep the original (a copy is saved next to it)." />
+
+                    <TextBlock Style="{StaticResource Section}" Text="Hiding" />
+                    <CheckBox Content="Hide results automatically (not while the mouse is over them)" IsChecked="{Binding Ui.AutoHideResults}" />
+                    <Grid Margin="24,0,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition /><RowDefinition />
+                        </Grid.RowDefinitions>
+                        <TextBlock Style="{StaticResource Label}" Text="Files, after (seconds)" />
+                        <TextBox Grid.Column="1" Style="{StaticResource Number}" Text="{Binding Ui.AutoHideSeconds, UpdateSourceTrigger=LostFocus}" />
+                        <TextBlock Grid.Row="1" Style="{StaticResource Label}" Text="Clipboard, after (seconds)" />
+                        <TextBox Grid.Row="1" Grid.Column="1" Style="{StaticResource Number}" Text="{Binding Ui.ClipboardAutoHideSeconds, UpdateSourceTrigger=LostFocus}" />
+                    </Grid>
+                    <CheckBox Content="Dismiss a result after dragging it into another app" IsChecked="{Binding Ui.DismissOnDrop}" />
+
+                    <TextBlock Style="{StaticResource Section}" Text="Privacy" />
+                    <CheckBox Content="Let result cards appear in screenshots and screen recordings" IsChecked="{Binding Ui.AllowInScreenshots}" />
+                </StackPanel>
+            </ScrollViewer>
+        </TabItem>
+
+        <!-- Hotkeys -->
+        <TabItem Header="Hotkeys">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <StackPanel Margin="16,12,16,16">
+                    <CheckBox Content="Enable hotkeys" IsChecked="{Binding Hotkeys.Enabled}" Margin="0,10,0,4" />
+                    <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                        <TextBlock Style="{StaticResource Label}" Text="Hold" />
+                        <CheckBox x:Name="ModCtrl" Content="Ctrl" Margin="0,4,14,4" Click="Modifier_Click" />
+                        <CheckBox x:Name="ModAlt" Content="Alt" Margin="0,4,14,4" Click="Modifier_Click" />
+                        <CheckBox x:Name="ModShift" Content="Shift" Margin="0,4,14,4" Click="Modifier_Click" />
+                        <CheckBox x:Name="ModWin" Content="Win" Margin="0,4,14,4" Click="Modifier_Click" />
+                    </StackPanel>
+                    <TextBlock x:Name="ModifierHint" Style="{StaticResource Hint}" />
+
+                    <Grid Margin="0,10,0,4">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="44" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="130" />
+                            <ColumnDefinition Width="170" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="On" FontWeight="SemiBold" />
+                        <TextBlock Grid.Column="1" Text="Action" FontWeight="SemiBold" />
+                        <TextBlock Grid.Column="2" Text="Key" FontWeight="SemiBold" />
+                        <TextBlock Grid.Column="3" Text="Status" FontWeight="SemiBold" />
+                    </Grid>
+                    <ItemsControl x:Name="HotkeyRows">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Grid Margin="0,2">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="44" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="130" />
+                                        <ColumnDefinition Width="170" />
+                                    </Grid.ColumnDefinitions>
+                                    <CheckBox Grid.Column="0" IsChecked="{Binding IsOn}" VerticalAlignment="Center" />
+                                    <TextBlock Grid.Column="1" Text="{Binding Description}" VerticalAlignment="Center" TextWrapping="Wrap" Margin="0,0,8,0" />
+                                    <ComboBox Grid.Column="2" ItemsSource="{Binding KeyChoices}" SelectedItem="{Binding Key}"
+                                              IsEnabled="{Binding CanRemap}" Margin="0,0,10,0" />
+                                    <TextBlock Grid.Column="3" Text="{Binding Status}" VerticalAlignment="Center" TextWrapping="Wrap">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Opacity" Value="0.7" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding HasProblem}" Value="True">
+                                                        <Setter Property="Foreground" Value="#D13438" />
+                                                        <Setter Property="Opacity" Value="1" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <Button Content="Reset to defaults" HorizontalAlignment="Left" Padding="12,4" Margin="0,12,0,0" Click="ResetHotkeys_Click" />
+                    <TextBlock Style="{StaticResource Hint}" Margin="0,8,0,0"
+                               Text="Keys act on the result under the mouse (or the newest one), otherwise on what's on the clipboard. &quot;Taken by another app&quot; means some other program already uses that combination; pick another key." />
+                </StackPanel>
+            </ScrollViewer>
+        </TabItem>
+
+        <!-- Pipelines -->
+        <TabItem Header="Pipelines">
+            <local:PipelinesPanel x:Name="PipelinesTab" />
+        </TabItem>
+    </TabControl>
+</Window>

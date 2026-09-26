@@ -1,0 +1,17 @@
+bin/
+obj/
+/packages/
+riderModule.iml
+/_ReSharper.Caches/
+.idea/
+.vs/
+*.user
+TestResults/
+/tools/
+/artifacts/
+
+# Notes and plans stay local
+*.md
+
+# Generated icon preview (scripts/make-icon.ps1)
+/WClop/Assets/WClop-preview.png

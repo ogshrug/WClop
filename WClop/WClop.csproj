@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <RootNamespace>WClop</RootNamespace>
+    <UseWPF>true</UseWPF>
+    <!-- WinForms is only used for the tray icon (NotifyIcon). -->
+    <UseWindowsForms>true</UseWindowsForms>
+    <StartupObject>WClop.Program</StartupObject>
+    <ApplicationIcon>Assets\WClop.ico</ApplicationIcon>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- WinForms is only for the tray icon and clipboard thread; keep its types out of every WPF file. -->
+    <Using Remove="System.Windows.Forms" />
+    <Using Remove="System.Drawing" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The tray icon draws its W on this (scripts/make-icon.ps1). -->
+    <EmbeddedResource Include="Assets\clipboard-blank.png" LogicalName="WClop.clipboard-blank.png" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\WClop.Core\WClop.Core.csproj" />
+  </ItemGroup>
+
+</Project>

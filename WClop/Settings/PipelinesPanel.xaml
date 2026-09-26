@@ -1,0 +1,89 @@
+<UserControl x:Class="WClop.Settings.PipelinesPanel"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <UserControl.Resources>
+        <Style x:Key="Section" TargetType="TextBlock">
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="Margin" Value="0,14,0,4" />
+        </Style>
+        <Style x:Key="Hint" TargetType="TextBlock">
+            <Setter Property="Opacity" Value="0.7" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="Margin" Value="0,2,0,6" />
+        </Style>
+    </UserControl.Resources>
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="16,12,16,16">
+            <TextBlock Style="{StaticResource Hint}"
+                       Text="A pipeline is a chain of steps run on a file, e.g. downscale(longEdge: 1920) -> convert(webp) -> copyToClipboard. Saved pipelines appear on result cards (the lightning button) and as drop zone presets, and can run automatically." />
+
+            <DockPanel Margin="0,8,0,0">
+                <StackPanel DockPanel.Dock="Left" Width="170" Margin="0,0,12,0">
+                    <ListBox x:Name="PipelineList" Height="250" DisplayMemberPath="Name" SelectionChanged="PipelineList_SelectionChanged"
+                             AutomationProperties.Name="Saved pipelines" />
+                    <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                        <Button Content="New" Padding="12,4" Margin="0,0,6,0" Click="New_Click" />
+                        <Button x:Name="DeleteButton" Content="Delete" Padding="12,4" Click="Delete_Click" />
+                    </StackPanel>
+                    <Button Content="Examples…" Padding="12,4" Margin="0,6,0,0" HorizontalAlignment="Left" Click="Examples_Click" />
+                </StackPanel>
+
+                <StackPanel x:Name="Editor" IsEnabled="False">
+                    <TextBlock Text="Name" Margin="0,0,0,2" />
+                    <TextBox x:Name="NameBox" LostFocus="NameBox_LostFocus" AutomationProperties.Name="Pipeline name" />
+
+                    <TextBlock Text="Steps" Margin="0,8,0,2" />
+                    <TextBox x:Name="ScriptBox" AcceptsReturn="True" TextWrapping="Wrap" Height="100" FontFamily="Cascadia Mono, Consolas"
+                             VerticalScrollBarVisibility="Auto" TextChanged="ScriptBox_TextChanged" AutomationProperties.Name="Pipeline steps" />
+                    <TextBlock x:Name="CheckText" TextWrapping="Wrap" Margin="0,4,0,0" FontSize="12" />
+
+                    <CheckBox x:Name="SkipBox" Content="Don't optimise first (for pipelines that re-encode anyway)" Margin="0,10,0,0"
+                              Checked="Flag_Click" Unchecked="Flag_Click" />
+                    <CheckBox x:Name="HideBox" Content="No result card when it runs automatically" Margin="0,6,0,0" Checked="Flag_Click" Unchecked="Flag_Click" />
+                    <CheckBox x:Name="DropZoneBox" Content="Offer it in the drop zone (scroll while holding files over it)" Margin="0,6,0,0"
+                              Checked="Flag_Click" Unchecked="Flag_Click" />
+                    <CheckBox x:Name="ResultsBox" Content="Offer it on result cards (the lightning button)" Margin="0,6,0,0"
+                              Checked="Flag_Click" Unchecked="Flag_Click" />
+                    <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                        <TextBlock Text="Only for" VerticalAlignment="Center" Margin="0,0,10,0" />
+                        <CheckBox x:Name="KindImage" Content="Images" Margin="0,0,10,0" Checked="Kinds_Changed" Unchecked="Kinds_Changed" />
+                        <CheckBox x:Name="KindVideo" Content="Videos" Margin="0,0,10,0" Checked="Kinds_Changed" Unchecked="Kinds_Changed" />
+                        <CheckBox x:Name="KindPdf" Content="PDFs" Margin="0,0,10,0" Checked="Kinds_Changed" Unchecked="Kinds_Changed" />
+                        <CheckBox x:Name="KindAudio" Content="Audio" Checked="Kinds_Changed" Unchecked="Kinds_Changed" />
+                    </StackPanel>
+                    <TextBlock Style="{StaticResource Hint}" Text="Only offered for, and only runs automatically on, these kinds of file. None ticked means every kind." />
+
+                    <TextBlock Style="{StaticResource Section}" Text="Run automatically for" />
+                    <CheckBox x:Name="ClipboardBox" Content="Copied images" Checked="Attach_Click" Unchecked="Attach_Click" />
+                    <CheckBox x:Name="DropAttachBox" Content="Everything dropped on the drop zone" Margin="0,6,0,0" Checked="Attach_Click" Unchecked="Attach_Click" />
+                    <ItemsControl x:Name="FolderChecks" Margin="0,2,0,0">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <CheckBox Content="{Binding Label}" IsChecked="{Binding IsChecked}" Margin="0,6,0,0" Checked="Attach_Click" Unchecked="Attach_Click" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <TextBlock x:Name="NoFoldersHint" Style="{StaticResource Hint}" Visibility="Collapsed"
+                               Text="Watched folders (Watched folders tab) can run pipelines too." />
+
+
+                    <Button x:Name="TryButton" Content="Try it on a file…" Padding="12,4" Margin="0,10,0,0" HorizontalAlignment="Left"
+                            Click="Try_Click" />
+                </StackPanel>
+            </DockPanel>
+
+            <TextBlock Style="{StaticResource Section}" Text="Safety" />
+            <CheckBox x:Name="AssistantScriptsBox" Content="Let AI assistants run pipelines that include runScript steps" Checked="Flag_Click" Unchecked="Flag_Click" />
+            <TextBlock Style="{StaticResource Hint}"
+                       Text="Pipelines you run yourself can always run scripts. Requests from AI assistants (the MCP server) can't unless this is on." />
+
+            <Expander Header="Step reference" Margin="0,12,0,0">
+                <TextBox x:Name="ReferenceBox" IsReadOnly="True" Height="320" TextWrapping="Wrap" FontFamily="Cascadia Mono, Consolas"
+                         FontSize="12" VerticalScrollBarVisibility="Auto" Margin="0,6,0,0" />
+            </Expander>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

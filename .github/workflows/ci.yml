@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      # The external tools (ffmpeg, Ghostscript, …) are ~250 MB of downloads; keep them between runs.
+      - name: Cache tools
+        uses: actions/cache@v4
+        with:
+          path: tools
+          key: tools-${{ runner.os }}-${{ hashFiles('scripts/fetch-tools.ps1') }}
+
+      - name: Fetch tools
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: ./scripts/fetch-tools.ps1
+
+      - name: Build
+        run: dotnet build WClop.sln -c Release --nologo
+
+      - name: Test
+        run: dotnet test WClop.Tests/WClop.Tests.csproj -c Release --no-build --nologo --logger "trx;LogFileName=results.trx"
+
+      - name: Upload test results
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: WClop.Tests/TestResults

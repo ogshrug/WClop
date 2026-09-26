@@ -1,0 +1,11 @@
+{
+  "version": 2,
+  "icons": {
+    "pack": "fluent",
+    "sizes": [16, 24, 32, 48, 256],
+    "color": "full-color",
+    "items": {
+      "app-icon": { "id": "Gr1XbweybhTw", "commonName": "clipboard", "file": "WClop/Assets/icons8-clipboard-fluent-256.png" }
+    }
+  }
+}
