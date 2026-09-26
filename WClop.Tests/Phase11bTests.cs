@@ -217,3 +217,28 @@ public sealed class ToolManifestTests : IDisposable
         Assert.Empty(ToolManifest.Verify(packaged)!);
     }
 }
+
+public sealed class WebPSizeTests : IDisposable
+{
+    private readonly TempDir _dir = new();
+
+    public void Dispose() => _dir.Dispose();
+
+    /// <summary>Sizes must read without a WebP codec (Windows Server, PCs without the Web Media Extensions).</summary>
+    [ToolsTheory]
+    [InlineData("lossy", new[] { "-c:v", "libwebp", "-quality", "80" }, "rgb24")]
+    [InlineData("lossless", new[] { "-c:v", "libwebp", "-lossless", "1" }, "rgb24")]
+    [InlineData("alpha", new[] { "-c:v", "libwebp", "-quality", "80" }, "rgba")]
+    public async Task ReadsEveryKindOfWebPHeader(string name, string[] codec, string pixelFormat)
+    {
+        var output = _dir.File(name + ".webp");
+        var made = await ProcessRunner.RunAsync(ToolLocator.CreateDefault().Require(Tool.Ffmpeg),
+        [
+            "-hide_banner", "-v", "error", "-y", "-f", "lavfi", "-i", "testsrc2=s=734x412", "-frames:v", "1",
+            "-pix_fmt", pixelFormat == "rgba" ? "yuva420p" : "yuv420p", .. codec, output,
+        ]);
+        Assert.True(made.Succeeded, made.StdErr);
+
+        Assert.Equal((734, 412), WebPInfo.Size(output));
+    }
+}

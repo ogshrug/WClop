@@ -23,7 +23,15 @@ public static class ImageDecoding
         catch (Exception e) when (e is IOException or NotSupportedException or FileFormatException
                                       or UnauthorizedAccessException or ArgumentException or InvalidOperationException)
         {
-            return null;
+            // No WIC codec for it (WebP without the Web Media Extensions): read the header directly.
+            try
+            {
+                return WClop.Core.Media.WebPInfo.Size(path) is var (width, height) ? new ImageSize(width, height) : null;
+            }
+            catch (Exception inner) when (inner is IOException or UnauthorizedAccessException)
+            {
+                return null;
+            }
         }
     }
 

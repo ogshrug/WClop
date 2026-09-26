@@ -31,6 +31,43 @@ public static class WebPInfo
     }
 
     /// <summary>
+    /// Pixel size of any WebP from its first chunk, without a decoder: lossy (<c>VP8 </c>), lossless (<c>VP8L</c>) or
+    /// extended (<c>VP8X</c>). Windows only decodes WebP with the Web Media Extensions installed, which Windows Server
+    /// and some PCs don't have.
+    /// </summary>
+    public static (int Width, int Height)? Size(ReadOnlySpan<byte> header)
+    {
+        if (header.Length < 30 || !header.StartsWith("RIFF"u8) || !header.Slice(8, 4).SequenceEqual("WEBP"u8))
+            return null;
+
+        var chunk = header.Slice(12, 4);
+        if (chunk.SequenceEqual("VP8X"u8))
+            return CanvasSize(header);
+
+        if (chunk.SequenceEqual("VP8 "u8))
+        {
+            // 3-byte frame tag, then the start code 9D 01 2A, then 14-bit width and height.
+            if (header[23] != 0x9D || header[24] != 0x01 || header[25] != 0x2A)
+                return null;
+            return (BinaryPrimitives.ReadUInt16LittleEndian(header[26..]) & 0x3FFF,
+                BinaryPrimitives.ReadUInt16LittleEndian(header[28..]) & 0x3FFF);
+        }
+
+        if (chunk.SequenceEqual("VP8L"u8))
+        {
+            // Signature 0x2F, then width−1 and height−1 as 14-bit fields.
+            if (header[20] != 0x2F)
+                return null;
+            var bits = BinaryPrimitives.ReadUInt32LittleEndian(header[21..]);
+            return ((int)(bits & 0x3FFF) + 1, (int)((bits >> 14) & 0x3FFF) + 1);
+        }
+
+        return null;
+    }
+
+    public static (int Width, int Height)? Size(string path) => Size(FileTypeSniffer.ReadHeader(path, 30));
+
+    /// <summary>
     /// Loop count from the <c>ANIM</c> chunk (0 = forever), walking chunks because an <c>ICCP</c>
     /// chunk may come first. Null if not found in the first few chunks.
     /// </summary>
