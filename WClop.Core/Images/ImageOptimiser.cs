@@ -86,9 +86,10 @@ public sealed class ImageOptimiser(ToolLocator tools, AppPaths paths)
                 }
             }
 
-            // Windows only decodes WebP with its optional codec, so an animated WebP is checked from its header.
-            var size = outputFormat == FileFormat.WebP && WebPInfo.CanvasSize(FileTypeSniffer.ReadHeader(output, 30)) is { } canvas
-                ? new ImageSize(canvas.Width, canvas.Height)
+            // Windows only decodes WebP with its optional codec, so a WebP is checked from its header (lossy, lossless
+            // or extended) rather than decoded.
+            var size = outputFormat == FileFormat.WebP && WebPInfo.Size(output) is { } webp
+                ? new ImageSize(webp.Width, webp.Height)
                 : ImageDecoding.Verify(output);
 
             if (outputFormat is FileFormat.Png or FileFormat.Jpeg)
