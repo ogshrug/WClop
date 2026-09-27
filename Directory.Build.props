@@ -6,7 +6,7 @@
     <LangVersion>latest</LangVersion>
     <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
     <!-- Packaging (scripts/package.ps1) stamps the real version with -p:Version=… -->
-    <Version>0.13.0</Version>
+    <Version>0.14.0</Version>
     <Product>WClop</Product>
     <Company>WClop</Company>
     <Copyright>WClop contributors</Copyright>

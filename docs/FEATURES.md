@@ -104,6 +104,7 @@ Drag files towards the edge of the screen and a translucent tab slides out.
   - Under 10 MB (Discord's limit)
   - Under 25 MB (email)
   - Gentle
+  - Watermark: your watermark and nothing else (once a default watermark image is set in *Settings → Pipelines*)
   - then any saved [pipelines](#pipelines) meant for the files you're dragging
 - **What you can drop:** files, folders, image links from a browser, images dragged out of browsers and chat apps, Outlook attachments and other virtual files.
 - **Folders and big drops** (a folder, or more than **30** files) open [batch mode](#batch-mode) instead of a pile of cards.

@@ -161,4 +161,31 @@ public sealed class WatermarkTests : IDisposable
         Assert.Equal(0.2, step.Get<double>("scale"));
         Assert.Contains("should be one of", Assert.Throws<PipelineSyntaxException>(() => PipelineCatalog.Compile("watermark(position: middle)")).Message);
     }
+
+    [Fact]
+    public void TheDropZoneOffersWatermarkOnceADefaultIsSet()
+    {
+        var pipelines = new PipelineSettings();
+        Assert.DoesNotContain(WClop.Core.DropZone.DropPresets.WithPipelines(pipelines), p => p.Name == "Watermark");
+
+        pipelines.DefaultWatermark = @"C:\logo.png";
+        var preset = Assert.Single(WClop.Core.DropZone.DropPresets.WithPipelines(pipelines), p => p.Name == "Watermark");
+        Assert.Equal("watermark", preset.Pipeline);
+        Assert.Contains(WClop.Core.DropZone.DropPresets.WithPipelines(pipelines, [FileFormat.Png]), p => p.Name == "Watermark");
+        Assert.DoesNotContain(WClop.Core.DropZone.DropPresets.WithPipelines(pipelines, [FileFormat.Pdf]), p => p.Name == "Watermark");
+
+        // A saved pipeline called Watermark replaces the built-in one rather than doubling up.
+        pipelines.Saved.Add(new SavedPipeline { Name = "Watermark", Script = "watermark(opacity: 50%)" });
+        Assert.Single(WClop.Core.DropZone.DropPresets.WithPipelines(pipelines), p => p.Name == "Watermark");
+    }
+
+    [ToolsFact]
+    public async Task TheWatermarkPresetOnlyWatermarks()
+    {
+        _settings.Pipelines.DefaultWatermark = TestImages.SavePng(Solid(64, 64, 255, 255, 255), _dir.File("logo.png"));
+        var library = new PipelineLibrary(_settings, _runner);
+        var resolved = library.Resolve("watermark");
+        Assert.True(resolved.SkipOptimisation); // no optimisation, just the watermark
+        Assert.Equal(["watermark"], resolved.Compiled.Steps.Select(s => s.Name));
+    }
 }

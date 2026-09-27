@@ -43,11 +43,25 @@ public static class DropPresets
     public static IReadOnlyList<DropPreset> WithPipelines(PipelineSettings pipelines, IReadOnlyCollection<FileFormat>? dragged = null) =>
     [
         .. All,
+        .. WatermarkPreset(pipelines, dragged),
         .. pipelines.Saved
             .Where(p => p.ShowInDropZone && p.Name.Length > 0 && PipelineCatalog.TryCompile(p.Script, out _, out _))
             .Where(p => dragged is null || dragged.Count == 0 || dragged.Any(p.AppliesTo))
             .Select(p => new DropPreset(p.Name, "Pipeline: " + Summary(p.Script), Pipeline: p.Name)),
     ];
+
+    /// <summary>
+    /// "Watermark": just the default watermark, no optimisation. Offered once a default watermark image is set, for
+    /// images and videos, unless a saved pipeline is already called Watermark.
+    /// </summary>
+    private static IEnumerable<DropPreset> WatermarkPreset(PipelineSettings pipelines, IReadOnlyCollection<FileFormat>? dragged)
+    {
+        if (pipelines.DefaultWatermark is not { Length: > 0 } || pipelines.Find("Watermark") is not null)
+            yield break;
+        if (dragged is { Count: > 0 } && !dragged.Any(f => f.Kind() is MediaKind.Image or MediaKind.Video))
+            yield break;
+        yield return new DropPreset("Watermark", "Add your watermark, nothing else", Pipeline: "watermark");
+    }
 
     private static string Summary(string script)
     {
