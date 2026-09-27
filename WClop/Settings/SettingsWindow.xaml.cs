@@ -58,6 +58,8 @@ namespace WClop.Settings
             PipelinesTab.Load(settings);
             VersionText.Text = $"WClop {AppPaths.Version}";
             PipelinesTab.Changed += ScheduleApply;
+            WatermarkTab.Load(settings);
+            WatermarkTab.Changed += ScheduleApply;
 
             CleanupBox.ItemsSource = new[]
             {

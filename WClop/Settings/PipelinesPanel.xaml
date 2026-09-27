@@ -75,14 +75,6 @@
                 </StackPanel>
             </DockPanel>
 
-            <TextBlock Style="{StaticResource Section}" Text="Watermark" />
-            <TextBlock Style="{StaticResource Hint}"
-                       Text="The image the watermark step uses when it doesn't name one, e.g. watermark(position: bottomRight, opacity: 80%). A PNG with a transparent background works best." />
-            <DockPanel>
-                <Button DockPanel.Dock="Right" Content="Browse…" Margin="8,0,0,0" Padding="12,4" Click="BrowseWatermark_Click" />
-                <TextBox x:Name="WatermarkBox" LostFocus="WatermarkBox_LostFocus" AutomationProperties.Name="Default watermark image" />
-            </DockPanel>
-
             <TextBlock Style="{StaticResource Section}" Text="Safety" />
             <CheckBox x:Name="AssistantScriptsBox" Content="Let AI assistants run pipelines that include runScript steps" Checked="Flag_Click" Unchecked="Flag_Click" />
             <TextBlock Style="{StaticResource Hint}"

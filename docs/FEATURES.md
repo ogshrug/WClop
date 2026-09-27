@@ -104,7 +104,7 @@ Drag files towards the edge of the screen and a translucent tab slides out.
   - Under 10 MB (Discord's limit)
   - Under 25 MB (email)
   - Gentle
-  - Watermark: your watermark and nothing else (once a default watermark image is set in *Settings → Pipelines*)
+  - Watermark: your watermark and nothing else (once a watermark image is set in *Settings → Watermark*)
   - then any saved [pipelines](#pipelines) meant for the files you're dragging
 - **What you can drop:** files, folders, image links from a browser, images dragged out of browsers and chat apps, Outlook attachments and other virtual files.
 - **Folders and big drops** (a folder, or more than **30** files) open [batch mode](#batch-mode) instead of a pile of cards.
@@ -219,7 +219,7 @@ if(regex: "^screenshot (\d+)") -> downscale(longEdge: 1920) -> convert(webp) -> 
 | `convert(to)` | jpeg, png, webp, avif, gif, webm, mp4 |
 | `crop(width, height, aspectRatio, smart)` | Crop from the centre; `smart: true` keeps the most detailed part of an image |
 | `targetSize(size)` | Fit under a size |
-| `watermark(image, position, opacity, scale, margin)` | Overlay a logo on images, videos (every frame, audio kept) and animated GIFs: `bottomRight` (default), `bottomLeft`, `topRight`, `topLeft` or `center`; width as a share of the file's (**15%**), **20 px** from the edges; transparency is kept. Without `image`, it uses the default watermark from *Settings → Pipelines* |
+| `watermark(image, position, opacity, scale, margin)` | Overlay a logo on images, videos (every frame, audio kept) and animated GIFs: `bottomRight`, `bottomLeft`, `topRight`, `topLeft` or `center`; width as a share of the file's; pixels from the edges; transparency is kept. Anything left out, including the image, comes from *Settings → Watermark* (bottom right, 100%, 15%, 20 px unless you change them) |
 | `stripExif` | Remove metadata |
 | `changeSpeed(factor)` · `removeAudio` · `capFps(fps)` | Video |
 | `lowerBitrate(kbps)` · `normalize(lufs)` | Video and audio (loudness to −16 LUFS by default) |
@@ -333,7 +333,8 @@ Changes apply as you make them.
 - **Output:** where files go, name templates with a preview.
 - **Results:** card corner and screen, auto-hide times, drag out, visibility in screenshots, drop zone and its position.
 - **Hotkeys:** modifiers, each key on or off, remapping, conflicts.
-- **Pipelines:** everything in [Pipelines](#pipelines), plus the default watermark image.
+- **Watermark:** the image, position, opacity, size and margin, with a live preview.
+- **Pipelines:** everything in [Pipelines](#pipelines).
 
 Settings are stored in `%APPDATA%\WClop\settings.json`.
 

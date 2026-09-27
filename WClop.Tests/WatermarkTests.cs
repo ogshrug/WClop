@@ -188,4 +188,37 @@ public sealed class WatermarkTests : IDisposable
         Assert.True(resolved.SkipOptimisation); // no optimisation, just the watermark
         Assert.Equal(["watermark"], resolved.Compiled.Steps.Select(s => s.Name));
     }
+
+    [ToolsFact]
+    public async Task UsesTheWatermarkSettingsForWhatTheStepLeavesOut()
+    {
+        _settings.Pipelines.DefaultWatermark = TestImages.SavePng(Solid(100, 100, 255, 255, 255), _dir.File("logo.png"));
+        _settings.Pipelines.WatermarkPosition = "topLeft";
+        _settings.Pipelines.WatermarkScale = 0.25;
+        _settings.Pipelines.WatermarkMargin = 0;
+        _settings.Pipelines.WatermarkOpacity = 0.5;
+
+        // 25% of 400 = a 100 px square in the top-left corner at half opacity.
+        var fromSettings = await Run("watermark", TestImages.SavePng(Solid(400, 300, 0, 0, 0), _dir.File("a.png")));
+        Assert.InRange((int)Pixel(fromSettings.Result.OutputPath, 50, 50).R, 110, 145);
+        Assert.True(Pixel(fromSettings.Result.OutputPath, 350, 250).R < 15);
+
+        // What the step says wins over the settings.
+        var overridden = await Run("watermark(position: bottomRight, opacity: 100%)", TestImages.SavePng(Solid(400, 300, 0, 0, 0), _dir.File("b.png")));
+        Assert.True(Pixel(overridden.Result.OutputPath, 350, 250).R > 240);
+        Assert.True(Pixel(overridden.Result.OutputPath, 50, 50).R < 15);
+    }
+
+    [ToolsFact]
+    public async Task OutOfRangeSettingsAreClamped()
+    {
+        _settings.Pipelines.DefaultWatermark = TestImages.SavePng(Solid(50, 50, 255, 255, 255), _dir.File("logo.png"));
+        _settings.Pipelines.WatermarkPosition = "sideways";
+        _settings.Pipelines.WatermarkScale = 7;
+        _settings.Pipelines.WatermarkOpacity = -1;
+        _settings.Pipelines.WatermarkMargin = -5;
+
+        var outcome = await Run("watermark", TestImages.SavePng(Solid(200, 200, 0, 0, 0), _dir.File("c.png")));
+        Assert.Contains("watermarked (bottomRight)", outcome.Log[0]);
+    }
 }

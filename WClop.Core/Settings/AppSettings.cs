@@ -38,6 +38,18 @@ public sealed class PipelineSettings
     /// <summary>The image <c>watermark</c> uses when the step names none (portable path).</summary>
     public string? DefaultWatermark { get; set; }
 
+    /// <summary>Where <c>watermark</c> puts it when the step doesn't say: bottomRight, bottomLeft, topRight, topLeft, center.</summary>
+    public string WatermarkPosition { get; set; } = "bottomRight";
+
+    /// <summary>0–1.</summary>
+    public double WatermarkOpacity { get; set; } = 1;
+
+    /// <summary>The watermark's width as a share of the file's width, 0–1.</summary>
+    public double WatermarkScale { get; set; } = 0.15;
+
+    /// <summary>Pixels from the edges.</summary>
+    public int WatermarkMargin { get; set; } = 20;
+
     /// <summary>Let AI assistants (the MCP server) run pipelines with <c>runScript</c> steps.</summary>
     public bool AllowScriptsFromAssistants { get; set; }
 

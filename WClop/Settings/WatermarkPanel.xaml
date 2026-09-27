@@ -1,0 +1,89 @@
+<UserControl x:Class="WClop.Settings.WatermarkPanel"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <UserControl.Resources>
+        <Style x:Key="Section" TargetType="TextBlock">
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="Margin" Value="0,14,0,4" />
+        </Style>
+        <Style x:Key="Hint" TargetType="TextBlock">
+            <Setter Property="Opacity" Value="0.7" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="Margin" Value="0,2,0,6" />
+        </Style>
+        <Style x:Key="Label" TargetType="TextBlock">
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Margin" Value="0,6,12,6" />
+        </Style>
+    </UserControl.Resources>
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="16,12,16,16">
+            <TextBlock Style="{StaticResource Hint}"
+                       Text="Used by the drop zone's Watermark option (scroll to it while dragging) and by any pipeline's watermark step that doesn't set these itself." />
+
+            <TextBlock Style="{StaticResource Section}" Text="Image" />
+            <DockPanel>
+                <Button DockPanel.Dock="Right" Content="Browse…" Margin="8,0,0,0" Padding="12,4" Click="Browse_Click" />
+                <Button x:Name="ClearButton" DockPanel.Dock="Right" Content="Clear" Margin="8,0,0,0" Padding="12,4" Click="Clear_Click" />
+                <TextBox x:Name="ImageBox" LostFocus="ImageBox_LostFocus" AutomationProperties.Name="Watermark image" />
+            </DockPanel>
+            <TextBlock x:Name="ImageHint" Style="{StaticResource Hint}"
+                       Text="A PNG with a transparent background works best: your logo, signature or handle." />
+
+            <TextBlock Style="{StaticResource Section}" Text="Placement" />
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="56" />
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition /><RowDefinition /><RowDefinition /><RowDefinition />
+                </Grid.RowDefinitions>
+
+                <TextBlock Style="{StaticResource Label}" Text="Position" />
+                <ComboBox x:Name="PositionBox" Grid.Column="1" Width="180" HorizontalAlignment="Left" Margin="0,3"
+                          DisplayMemberPath="Label" SelectedValuePath="Value" SelectionChanged="Setting_Changed"
+                          AutomationProperties.Name="Watermark position" />
+
+                <TextBlock Grid.Row="1" Style="{StaticResource Label}" Text="Opacity" />
+                <Slider x:Name="OpacitySlider" Grid.Row="1" Grid.Column="1" Minimum="5" Maximum="100" SmallChange="5" LargeChange="10"
+                        IsSnapToTickEnabled="True" TickFrequency="5" VerticalAlignment="Center" ValueChanged="Setting_Changed"
+                        AutomationProperties.Name="Watermark opacity" />
+                <TextBlock x:Name="OpacityText" Grid.Row="1" Grid.Column="2" VerticalAlignment="Center" Margin="10,0,0,0" />
+
+                <TextBlock Grid.Row="2" Style="{StaticResource Label}" Text="Size" />
+                <Slider x:Name="ScaleSlider" Grid.Row="2" Grid.Column="1" Minimum="3" Maximum="60" SmallChange="1" LargeChange="5"
+                        IsSnapToTickEnabled="True" TickFrequency="1" VerticalAlignment="Center" ValueChanged="Setting_Changed"
+                        AutomationProperties.Name="Watermark size" />
+                <TextBlock x:Name="ScaleText" Grid.Row="2" Grid.Column="2" VerticalAlignment="Center" Margin="10,0,0,0" />
+
+                <TextBlock Grid.Row="3" Style="{StaticResource Label}" Text="Margin (px)" />
+                <TextBox x:Name="MarginBox" Grid.Row="3" Grid.Column="1" Width="90" HorizontalAlignment="Left" Margin="0,3"
+                         LostFocus="MarginBox_LostFocus" AutomationProperties.Name="Watermark margin" />
+            </Grid>
+            <TextBlock Style="{StaticResource Hint}" Text="Size is the watermark's width as a share of the picture's or video's width, so it looks the same on small and large files." />
+
+            <TextBlock Style="{StaticResource Section}" Text="Preview" />
+            <Border x:Name="PreviewFrame" Width="384" Height="216" HorizontalAlignment="Left" CornerRadius="4" ClipToBounds="True"
+                    BorderThickness="1" BorderBrush="#40808080">
+                <Border.Background>
+                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                        <GradientStop Color="#FF5B7FA6" Offset="0" />
+                        <GradientStop Color="#FF9DB7C9" Offset="0.55" />
+                        <GradientStop Color="#FFD9C6A5" Offset="1" />
+                    </LinearGradientBrush>
+                </Border.Background>
+                <Grid>
+                    <Image x:Name="PreviewImage" Stretch="Uniform" RenderOptions.BitmapScalingMode="HighQuality" />
+                    <TextBlock x:Name="PreviewEmpty" Text="Choose an image to see the watermark here" Foreground="White"
+                               HorizontalAlignment="Center" VerticalAlignment="Center" Opacity="0.85" />
+                </Grid>
+            </Border>
+            <TextBlock Style="{StaticResource Hint}" Text="The preview stands for a 1920 px wide picture." />
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

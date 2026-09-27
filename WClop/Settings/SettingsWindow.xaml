@@ -405,6 +405,11 @@
             </ScrollViewer>
         </TabItem>
 
+        <!-- Watermark -->
+        <TabItem Header="Watermark">
+            <local:WatermarkPanel x:Name="WatermarkTab" />
+        </TabItem>
+
         <!-- Pipelines -->
         <TabItem Header="Pipelines">
             <local:PipelinesPanel x:Name="PipelinesTab" />

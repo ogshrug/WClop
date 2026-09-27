@@ -546,7 +546,7 @@ public sealed class PipelineRunner(FileOptimisationService service, AppSettings 
             ? ResolvePath(run.Expand(given))
             : settings.Pipelines.DefaultWatermark is { Length: > 0 } fallback
                 ? PortablePath.Expand(fallback)
-                : throw new PipelineException("No watermark image: give one, e.g. watermark(image: \"~/Pictures/logo.png\"), or set a default in Settings → Pipelines");
+                : throw new PipelineException("No watermark image: give one, e.g. watermark(image: \"~/Pictures/logo.png\"), or set a default in Settings → Watermark");
         if (!File.Exists(image))
             throw new PipelineException($"Watermark image not found: {image}");
         if (FileTypeSniffer.Detect(image).Kind() != MediaKind.Image)
@@ -554,10 +554,14 @@ public sealed class PipelineRunner(FileOptimisationService service, AppSettings 
 
         var size = await ReadSizeAsync(run.Current, kind, cancellationToken).ConfigureAwait(false)
                    ?? throw new PipelineException("Can't read the size to place the watermark");
-        var position = step.Get<string>("position") ?? "bottomRight";
-        var opacity = step.Has("opacity") ? step.Get<double>("opacity") : 1.0;
-        var scale = step.Has("scale") ? step.Get<double>("scale") : 0.15;
-        var margin = step.Has("margin") ? step.Get<int>("margin") : 20;
+        // Anything the step leaves out comes from Settings → Watermark.
+        var defaults = settings.Pipelines;
+        var position = step.Get<string>("position")
+                       ?? PipelineCatalog.WatermarkPositions.FirstOrDefault(p => p.Equals(defaults.WatermarkPosition, StringComparison.OrdinalIgnoreCase))
+                       ?? "bottomRight";
+        var opacity = step.Has("opacity") ? step.Get<double>("opacity") : Math.Clamp(defaults.WatermarkOpacity, 0.01, 1);
+        var scale = step.Has("scale") ? step.Get<double>("scale") : Math.Clamp(defaults.WatermarkScale, 0.01, 1);
+        var margin = step.Has("margin") ? step.Get<int>("margin") : Math.Clamp(defaults.WatermarkMargin, 0, 2000);
 
         var (x, y) = WatermarkPlacement(position, margin);
         var width = Math.Max(2, (int)Math.Round(size.Width * scale));
