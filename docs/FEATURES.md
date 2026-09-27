@@ -218,6 +218,7 @@ if(regex: "^screenshot (\d+)") -> downscale(longEdge: 1920) -> convert(webp) -> 
 | `convert(to)` | jpeg, png, webp, avif, gif, webm, mp4 |
 | `crop(width, height, aspectRatio, smart)` | Crop from the centre; `smart: true` keeps the most detailed part of an image |
 | `targetSize(size)` | Fit under a size |
+| `watermark(image, position, opacity, scale, margin)` | Overlay a logo on images, videos (every frame, audio kept) and animated GIFs: `bottomRight` (default), `bottomLeft`, `topRight`, `topLeft` or `center`; width as a share of the file's (**15%**), **20 px** from the edges; transparency is kept. Without `image`, it uses the default watermark from *Settings → Pipelines* |
 | `stripExif` | Remove metadata |
 | `changeSpeed(factor)` · `removeAudio` · `capFps(fps)` | Video |
 | `lowerBitrate(kbps)` · `normalize(lufs)` | Video and audio (loudness to −16 LUFS by default) |
@@ -331,7 +332,7 @@ Changes apply as you make them.
 - **Output:** where files go, name templates with a preview.
 - **Results:** card corner and screen, auto-hide times, drag out, visibility in screenshots, drop zone and its position.
 - **Hotkeys:** modifiers, each key on or off, remapping, conflicts.
-- **Pipelines:** everything in [Pipelines](#pipelines).
+- **Pipelines:** everything in [Pipelines](#pipelines), plus the default watermark image.
 
 Settings are stored in `%APPDATA%\WClop\settings.json`.
 

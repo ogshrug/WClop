@@ -346,6 +346,10 @@ public sealed class PipelineRunner(FileOptimisationService service, AppSettings 
                 await CropAsync(step, run, kind, cancellationToken).ConfigureAwait(false);
                 break;
 
+            case "watermark":
+                await WatermarkAsync(step, run, kind, cancellationToken).ConfigureAwait(false);
+                break;
+
             case "stripExif":
                 await StripMetadataAsync(run, kind, cancellationToken).ConfigureAwait(false);
                 break;
@@ -530,6 +534,84 @@ public sealed class PipelineRunner(FileOptimisationService service, AppSettings 
             _ => throw new PipelineException($"crop can't write {format} images; convert them first"),
         };
         await FfmpegStepAsync(run, what, ["-vf", crop, "-frames:v", "1", "-update", "1", .. quality], null, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Overlays the watermark image (project.md §8.11): scaled to a share of the file's width, at a corner or the
+    /// centre, with opacity. FFmpeg composites every frame of videos and animated GIFs; stills keep their alpha.
+    /// </summary>
+    private async Task WatermarkAsync(CompiledStep step, Run run, MediaKind kind, CancellationToken cancellationToken)
+    {
+        var image = step.Get<string>("image") is { } given
+            ? ResolvePath(run.Expand(given))
+            : settings.Pipelines.DefaultWatermark is { Length: > 0 } fallback
+                ? PortablePath.Expand(fallback)
+                : throw new PipelineException("No watermark image: give one, e.g. watermark(image: \"~/Pictures/logo.png\"), or set a default in Settings → Pipelines");
+        if (!File.Exists(image))
+            throw new PipelineException($"Watermark image not found: {image}");
+        if (FileTypeSniffer.Detect(image).Kind() != MediaKind.Image)
+            throw new PipelineException($"The watermark must be an image: {Path.GetFileName(image)}");
+
+        var size = await ReadSizeAsync(run.Current, kind, cancellationToken).ConfigureAwait(false)
+                   ?? throw new PipelineException("Can't read the size to place the watermark");
+        var position = step.Get<string>("position") ?? "bottomRight";
+        var opacity = step.Has("opacity") ? step.Get<double>("opacity") : 1.0;
+        var scale = step.Has("scale") ? step.Get<double>("scale") : 0.15;
+        var margin = step.Has("margin") ? step.Get<int>("margin") : 20;
+
+        var (x, y) = WatermarkPlacement(position, margin);
+        var width = Math.Max(2, (int)Math.Round(size.Width * scale));
+        var mark = string.Create(CultureInfo.InvariantCulture,
+            $"[1:v]format=rgba,scale={width}:-1:flags=lanczos,colorchannelmixer=aa={opacity:0.###}[mark]");
+
+        var format = FileTypeSniffer.Detect(run.Current);
+        string filter;
+        string[] output;
+        string? extension = null;
+        if (kind == MediaKind.Video)
+        {
+            filter = $"{mark};[0:v][mark]overlay={x}:{y}[out]";
+            output = ["-map", "[out]", "-map", "0:a?", .. VideoCodec(run.Current), "-c:a", "copy"];
+            extension = VideoOutputExtension(run.Current);
+        }
+        else if (format == FileFormat.Gif)
+        {
+            // Every frame, then a fresh palette so the logo's colours survive.
+            filter = $"{mark};[0:v][mark]overlay={x}:{y},split[a][b];[a]palettegen=reserve_transparent=1[p];[b][p]paletteuse[out]";
+            output = ["-map", "[out]", "-loop", "0"];
+        }
+        else
+        {
+            string[] quality = format switch
+            {
+                FileFormat.Jpeg => ["-q:v", "2"],
+                FileFormat.WebP => ["-quality", "92"],
+                FileFormat.Png or FileFormat.Bmp or FileFormat.Tiff => [],
+                _ => throw new PipelineException($"watermark can't write {format} images; convert them first"),
+            };
+            filter = $"{mark};[0:v]format=rgba[base];[base][mark]overlay={x}:{y}:format=auto[out]";
+            output = ["-map", "[out]", "-frames:v", "1", "-update", "1", .. quality];
+        }
+
+        await FfmpegStepAsync(run, $"watermarked ({position})", ["-i", image, "-filter_complex", filter, .. output], extension, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    internal static (string X, string Y) WatermarkPlacement(string position, int margin) => position switch
+    {
+        "bottomLeft" => ($"{margin}", $"H-h-{margin}"),
+        "topRight" => ($"W-w-{margin}", $"{margin}"),
+        "topLeft" => ($"{margin}", $"{margin}"),
+        "center" => ("(W-w)/2", "(H-h)/2"),
+        _ => ($"W-w-{margin}", $"H-h-{margin}"),
+    };
+
+    /// <summary>A path as typed in a pipeline: <c>~</c> is the user folder, environment variables are expanded.</summary>
+    private static string ResolvePath(string path)
+    {
+        if (path == "~" || path.StartsWith("~/", StringComparison.Ordinal) || path.StartsWith("~\\", StringComparison.Ordinal))
+            path = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile) + path[1..];
+        return Path.GetFullPath(Environment.ExpandEnvironmentVariables(path));
     }
 
     private async Task StripMetadataAsync(Run run, MediaKind kind, CancellationToken cancellationToken)

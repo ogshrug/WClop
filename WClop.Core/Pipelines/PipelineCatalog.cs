@@ -88,6 +88,8 @@ public static class PipelineCatalog
         ImageConverter.Targets.Concat(VideoConverter.Targets).Distinct()
             .Select(f => f.Extension().TrimStart('.')).ToList();
 
+    public static readonly IReadOnlyList<string> WatermarkPositions = ["bottomRight", "bottomLeft", "topRight", "topLeft", "center"];
+
     private static readonly ArgSpec To = new("to", ArgType.Text,
         "Destination: a folder (ending in / or \\) or a path; ~ is your user folder, %f %e %y %m %d %H %M %S are name/date tokens, $1 a regex capture");
 
@@ -126,6 +128,16 @@ public static class PipelineCatalog
         new("targetSize", StepCategory.Processing, "Make the file fit under a size (the smallest attempt is kept if it can't)",
             [new("size", ArgType.Size, "e.g. 10MB, 500KB")],
             "targetSize(10MB)") { DefaultArg = "size", Aliases = ["fit"], RequiresOneOf = ["size"] },
+        new("watermark", StepCategory.Processing,
+            "Overlay an image (a logo, a signature) on images, videos and animated GIFs",
+            [
+                new("image", ArgType.Text, "The watermark: a PNG with transparency works best (default: the one set in Settings → Pipelines)"),
+                new("position", ArgType.Choice, "Where it goes (default bottomRight)") { Choices = WatermarkPositions },
+                new("opacity", ArgType.Fraction, "0–1 or a percentage (default 100%)") { Min = 0.01, Max = 1 },
+                new("scale", ArgType.Fraction, "Its width as a share of the file's width (default 15%)") { Min = 0.01, Max = 1 },
+                new("margin", ArgType.Integer, "Pixels from the edges (default 20)") { Min = 0, Max = 2000 },
+            ],
+            "watermark(image: \"~/Pictures/logo.png\", position: bottomRight, opacity: 80%)") { Kinds = Visual, DefaultArg = "image" },
         new("stripExif", StepCategory.Processing, "Remove metadata (camera, location, dates, comments)", [],
             "stripExif") { Aliases = ["stripMetadata"] },
         new("changeSpeed", StepCategory.Processing, "Speed a video up (or slow it down)",
@@ -442,6 +454,7 @@ public static class PipelineCatalog
             if(type: video, sizeGreaterThan: 25MB) -> targetSize(25MB)
             changeSpeed(2) -> removeAudio -> optimise
             if(copiedBy: chrome) -> crop(aspectRatio: "16:9") -> stripExif
+            downscale(longEdge: 1600) -> watermark(position: bottomRight, opacity: 70%)
             if(regex: "^IMG_(\d+)") -> rename(to: "photo-$1")
             ```
             """);

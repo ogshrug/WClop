@@ -22,7 +22,7 @@ WClop is a Windows take on [Clop](https://github.com/FuzzyIdeas/Clop) for macOS.
 - **Explorer:** right-click → *Optimise with WClop*, or *Send to → WClop*. A folder or lots of files open batch mode.
 - **Result cards:** every result shows up as a small card with the before/after size and buttons to restore, downscale, fit under a size, convert, run a pipeline or show the file.
 - **Hotkeys:** Ctrl+Alt+Shift + Z optimises whatever is on the clipboard, U restores, − and 1–9 downscale, A goes aggressive, and more.
-- **Pipelines:** a small automation language, for example `if(regex: "^screenshot") -> downscale(longEdge: 1920) -> convert(webp) -> move(to: "~/Pictures/Web/")`, run from cards, the drop zone, folders, the clipboard or the command line.
+- **Pipelines:** a small automation language, for example `if(regex: "^screenshot") -> downscale(longEdge: 1920) -> convert(webp) -> move(to: "~/Pictures/Web/")`, run from cards, the drop zone, folders, the clipboard or the command line. Includes watermarking images, videos and GIFs with your logo.
 - **Batch mode:** optimise whole folders with a progress table, with every original backed up first and a one-click *Restore all*.
 - **Command line:** `wclop optimise`, `wclop pipeline run`, `wclop settings set …`, talking to the running app.
 

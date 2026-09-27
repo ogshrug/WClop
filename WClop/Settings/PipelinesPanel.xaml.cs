@@ -24,6 +24,7 @@ namespace WClop.Settings
             ("Discord video", "if(type: video)\n-> removeAudio\n-> targetSize(10MB)", true),
             ("Copy path", "copyToClipboard(as: path)", false),
             ("No metadata", "stripExif", false),
+            ("Watermark", "watermark(position: bottomRight, opacity: 80%)", false),
         ];
 
         private readonly ObservableCollection<SavedPipeline> _pipelines = [];
@@ -54,6 +55,7 @@ namespace WClop.Settings
                 _pipelines.Add(pipeline);
             _loading = true;
             AssistantScriptsBox.IsChecked = Pipelines.AllowScriptsFromAssistants;
+            WatermarkBox.Text = Pipelines.DefaultWatermark is { Length: > 0 } watermark ? PortablePath.Expand(watermark) : "";
             _loading = false;
             PipelineList.SelectedIndex = _pipelines.Count > 0 ? 0 : -1;
             ShowSelected();
@@ -268,6 +270,31 @@ namespace WClop.Settings
             if (KindVideo.IsChecked == true) pipeline.Kinds.Add("video");
             if (KindPdf.IsChecked == true) pipeline.Kinds.Add("pdf");
             if (KindAudio.IsChecked == true) pipeline.Kinds.Add("audio");
+            Changed?.Invoke();
+        }
+
+        private void WatermarkBox_LostFocus(object sender, RoutedEventArgs e) => SetWatermark(WatermarkBox.Text.Trim().Trim('"'));
+
+        private void BrowseWatermark_Click(object sender, RoutedEventArgs e)
+        {
+            var dialog = new Microsoft.Win32.OpenFileDialog
+            {
+                Title = "Choose the watermark image",
+                Filter = "Images|*.png;*.jpg;*.jpeg;*.gif;*.bmp;*.webp|All files|*.*",
+            };
+            if (dialog.ShowDialog(Window.GetWindow(this)) == true)
+            {
+                WatermarkBox.Text = dialog.FileName;
+                SetWatermark(dialog.FileName);
+            }
+        }
+
+        private void SetWatermark(string path)
+        {
+            var value = path.Length == 0 ? null : PortablePath.Contract(path);
+            if (value == Pipelines.DefaultWatermark)
+                return;
+            Pipelines.DefaultWatermark = value;
             Changed?.Invoke();
         }
 

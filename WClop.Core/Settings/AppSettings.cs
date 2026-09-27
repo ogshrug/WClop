@@ -35,6 +35,9 @@ public sealed class PipelineSettings
     public List<SavedPipeline> Saved { get; set; } = [];
     public List<PipelineAttachment> Attached { get; set; } = [];
 
+    /// <summary>The image <c>watermark</c> uses when the step names none (portable path).</summary>
+    public string? DefaultWatermark { get; set; }
+
     /// <summary>Let AI assistants (the MCP server) run pipelines with <c>runScript</c> steps.</summary>
     public bool AllowScriptsFromAssistants { get; set; }
 
