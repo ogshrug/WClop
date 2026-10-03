@@ -48,6 +48,9 @@ namespace WClop.Clipboard
         private PendingJob? _pending;
         private string? _lastOutputHash;
 
+        /// <summary>Results collected for "Collect clipboard results"; thread-safe, cleared from the UI too.</summary>
+        private readonly ClipboardCollection _collection = new();
+
         /// <summary>
         /// The clipboard content currently being optimised. Apps often write the same copy several times
         /// (the Snipping Tool does); those repeats update <see cref="Sequence"/> instead of restarting the job,
@@ -91,6 +94,12 @@ namespace WClop.Clipboard
 
         public void CancelPause() => _pauseNextEvent = false;
 
+        /// <summary>
+        /// Starts the clipboard collection again (tray "Clear results", the Escape hotkey). What's on the clipboard
+        /// now stays there; the next optimised image starts a new collection.
+        /// </summary>
+        public void ClearCollection() => _collection.Clear();
+
         /// <summary>Puts an image file on the clipboard (used by restore). Marked so it isn't optimised again.</summary>
         public Task PutImageFileAsync(string path)
         {
@@ -107,7 +116,7 @@ namespace WClop.Clipboard
                 ? PutImageFileAsync(path)
                 : InvokeAsync(() => WriteFileOnly(path));
 
-        private void WriteFileOnly(string path)
+        private void WriteFileOnly(string path, IReadOnlyList<string>? collected = null)
         {
             if (!ClipboardAccess.TryOpen(_window!.Handle))
                 throw new IOException("Couldn't open the clipboard (held by another app)");
@@ -115,7 +124,7 @@ namespace WClop.Clipboard
             {
                 EmptyClipboard();
                 ClipboardAccess.Write(_markerFormat, Encoding.ASCII.GetBytes("true"));
-                ClipboardAccess.Write(CF_HDROP, ClipboardAccess.DropFiles(path));
+                ClipboardAccess.Write(CF_HDROP, ClipboardAccess.DropFiles(collected is { Count: > 0 } ? collected : [path]));
                 ClipboardAccess.Write(RegisterClipboardFormat(ClipboardFormatNames.PreferredDropEffect), ClipboardAccess.Dword(1));
             }
             finally
@@ -466,14 +475,15 @@ namespace WClop.Clipboard
                             // Compare against the latest write of this same content, not just the first one.
                             if (GetClipboardSequenceNumber() == pending.Sequence)
                             {
+                                var collected = Collect(outputPath);
                                 if (payload is not null)
                                 {
-                                    Write(payload);
+                                    Write(payload, collected);
                                     _lastOutputHash = ContentHash.OfBytes(payload.ImageBytes);
                                 }
                                 else
                                 {
-                                    WriteFileOnly(outputPath);
+                                    WriteFileOnly(outputPath, collected);
                                 }
                             }
                             else
@@ -501,6 +511,24 @@ namespace WClop.Clipboard
                         _pending = null;
                 });
             }
+        }
+
+        /// <summary>
+        /// Clipboard thread, just before a result is written back: with "Collect clipboard results" on, adds it to the
+        /// collection and returns every collected file (oldest first) to put on the clipboard; otherwise null.
+        /// Only results that really reach the clipboard are collected.
+        /// </summary>
+        private IReadOnlyList<string>? Collect(string path)
+        {
+            if (!_settings.Clipboard.CollectResults)
+            {
+                _collection.Clear();
+                return null;
+            }
+
+            var all = _collection.Add(path, TimeSpan.FromSeconds(_settings.Clipboard.CollectResultsIdleSeconds));
+            // Working-folder cleanup may have removed an older one, and one missing file fails the whole paste.
+            return all.Where(File.Exists).ToList();
         }
 
         /// <summary>A pipeline's copyToClipboard step: the file, its pixels, its path, or a Markdown image link.</summary>
@@ -610,8 +638,11 @@ namespace WClop.Clipboard
             return new Payload(path, imageFormat, File.ReadAllBytes(path), DibConverter.ImageFileToDib(path));
         }
 
-        /// <summary>Clipboard thread: replace the clipboard contents with the image, marked as WClop's own write.</summary>
-        private void Write(Payload payload)
+        /// <summary>
+        /// Clipboard thread: replace the clipboard contents with the image, marked as WClop's own write.
+        /// <paramref name="collected"/> (when collecting results) is the file list, instead of just this image.
+        /// </summary>
+        private void Write(Payload payload, IReadOnlyList<string>? collected = null)
         {
             if (!ClipboardAccess.TryOpen(_window!.Handle))
                 throw new IOException("Couldn't open the clipboard (held by another app)");
@@ -623,9 +654,10 @@ namespace WClop.Clipboard
                 ClipboardAccess.Write(RegisterClipboardFormat(payload.ImageFormat), payload.ImageBytes);
                 ClipboardAccess.Write(CF_DIB, payload.Dib);
 
-                if (_settings.Clipboard.CopyImageFilePath)
+                // Collected results are always offered as files: pasting them together is the point.
+                if (collected is { Count: > 0 } || _settings.Clipboard.CopyImageFilePath)
                 {
-                    ClipboardAccess.Write(CF_HDROP, ClipboardAccess.DropFiles(payload.Path));
+                    ClipboardAccess.Write(CF_HDROP, ClipboardAccess.DropFiles(collected is { Count: > 0 } ? collected : [payload.Path]));
                     ClipboardAccess.Write(
                         RegisterClipboardFormat(ClipboardFormatNames.PreferredDropEffect), ClipboardAccess.Dword(1)); // copy
                 }

@@ -19,12 +19,16 @@ public enum IpcChannel
     Settings,
 }
 
-/// <summary>Where a request came from; Explorer and Send To requests are gathered so many files become a batch.</summary>
+/// <summary>
+/// Where a request came from. Explorer and Send To requests are gathered so many files become a batch; requests from
+/// AI assistants (<c>wclop mcp</c>) are held to <see cref="AssistantPolicy"/> by the app itself, not only the client.
+/// </summary>
 public enum IpcSource
 {
     Cli,
     Explorer,
     SendTo,
+    Mcp,
 }
 
 public sealed record OptimiseCommand
@@ -41,6 +45,14 @@ public sealed record OptimiseCommand
 
     /// <summary>Convert to this format (by extension, e.g. "webp") instead of optimising.</summary>
     public string? ConvertTo { get; init; }
+
+    /// <summary>Crop instead of optimising (<c>wclop crop</c>): a size like "1920x1080" and/or a ratio like "16:9".</summary>
+    public string? CropSize { get; init; }
+
+    public string? CropAspect { get; init; }
+
+    /// <summary>With a crop: keep the most detailed part of an image rather than the centre.</summary>
+    public bool SmartCrop { get; init; }
 
     public bool KeepOriginals { get; init; }
 
@@ -68,7 +80,7 @@ public sealed record OptimiseReply(IReadOnlyList<FileOutcome> Files, string? Mes
 
 public sealed record StopReply(int Cancelled);
 
-public sealed record SettingsCommand(string Action, string? Key = null, string? Value = null);
+public sealed record SettingsCommand(string Action, string? Key = null, string? Value = null, IpcSource Source = IpcSource.Cli);
 
 public sealed record SettingsReply(bool Ok, string? Value = null, string? Error = null);
 

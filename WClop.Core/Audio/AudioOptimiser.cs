@@ -3,6 +3,7 @@ using System.Text.Json;
 using WClop.Core.Images;
 using WClop.Core.Media;
 using WClop.Core.Processes;
+using WClop.Core.Settings;
 
 namespace WClop.Core.Audio;
 
@@ -121,7 +122,8 @@ public sealed class AudioOptimiser(ToolLocator tools, AppPaths paths)
     };
 
     public async Task<AudioOptimiseOutput> OptimiseAsync(
-        string input, int factor, bool allowLarger, Action<double>? onProgress, CancellationToken cancellationToken, int? kbpsOverride = null)
+        string input, int factor, bool allowLarger, Action<double>? onProgress, CancellationToken cancellationToken, int? kbpsOverride = null,
+        double speed = 1, CoverArtMode coverArt = CoverArtMode.Keep)
     {
         var info = await AudioInfo.ProbeAsync(tools.Require(Tool.Ffprobe), input, cancellationToken).ConfigureAwait(false)
                    ?? throw new UnsupportedFormatException("Not an audio file ffmpeg can read");
@@ -131,17 +133,22 @@ public sealed class AudioOptimiser(ToolLocator tools, AppPaths paths)
         var target = kbpsOverride ?? AudioBitrates.For(output, factor);
         var sameFamily = output == inputFormat || (output == FileFormat.M4a && inputFormat is FileFormat.M4a or FileFormat.Aac);
         var bitrate = info.IsLossless ? target : AudioBitrates.Capped(output, target, info.BitrateKbps);
+        var changesSpeed = Math.Abs(speed - 1) > 0.001;
 
         var inputSize = new FileInfo(input).Length;
-        if (sameFamily && !info.IsLossless && info.BitrateKbps is { } source && bitrate >= source - 8 && !allowLarger)
-            throw new NotSmallerException(inputSize, inputSize); // re-encoding at the same bitrate only loses quality
+        // Re-encoding at the same bitrate only loses quality: unless the speed changes, keep the sound as it is, and
+        // only bother if there's cover art to shrink or drop.
+        var copyAudio = sameFamily && !info.IsLossless && info.BitrateKbps is { } source && bitrate >= source - 8 && !changesSpeed;
+        if (copyAudio && (!info.HasCoverArt || coverArt == CoverArtMode.Keep) && !allowLarger)
+            throw new NotSmallerException(inputSize, inputSize);
 
         Directory.CreateDirectory(paths.Audios);
         var path = AppPaths.NewTempPath(paths.Audios, output.Extension());
-        var seconds = info.Duration.TotalSeconds;
+        var seconds = info.Duration.TotalSeconds / speed;
         try
         {
-            var result = await ProcessRunner.RunAsync(tools.Require(Tool.Ffmpeg), Arguments(input, path, output, bitrate, info),
+            var arguments = Arguments(input, path, output, bitrate, info, new AudioEncodeOptions(speed, coverArt, copyAudio));
+            var result = await ProcessRunner.RunAsync(tools.Require(Tool.Ffmpeg), arguments,
                 new ProcessRunOptions
                 {
                     Timeout = TimeSpan.FromMinutes(Math.Max(5, seconds / 60)),
@@ -155,7 +162,7 @@ public sealed class AudioOptimiser(ToolLocator tools, AppPaths paths)
                 throw new NotSmallerException(inputSize, outputSize);
 
             onProgress?.Invoke(1);
-            return new AudioOptimiseOutput(path, output, inputSize, outputSize, bitrate);
+            return new AudioOptimiseOutput(path, output, inputSize, outputSize, copyAudio ? info.BitrateKbps!.Value : bitrate);
         }
         catch
         {
@@ -171,29 +178,50 @@ public sealed class AudioOptimiser(ToolLocator tools, AppPaths paths)
         }
     }
 
-    internal static IReadOnlyList<string> Arguments(string input, string output, FileFormat format, int kbps, AudioInfo info)
+    /// <summary>
+    /// The JPEG quantiser for optimised cover art (ffmpeg's -q:v, 2 best – 31 worst): coarse, since players show the
+    /// art small, but not blocky.
+    /// </summary>
+    internal const int CoverArtJpegQuantiser = 9;
+
+    internal static IReadOnlyList<string> Arguments(
+        string input, string output, FileFormat format, int kbps, AudioInfo info, AudioEncodeOptions? options = null)
     {
+        options ??= new AudioEncodeOptions();
         var args = new List<string> { "-hide_banner", "-nostats", "-progress", "pipe:2", "-y", "-i", input, "-map", "0:a:0" };
 
-        // Cover art is kept as-is (MP3 and M4A carry it; Ogg Opus can't through ffmpeg).
-        var keepCover = info.HasCoverArt && format != FileFormat.Ogg;
-        if (keepCover)
-            args.AddRange(["-map", "0:v:0", "-c:v", "copy", "-disposition:v:0", "attached_pic"]);
+        // MP3 and M4A carry cover art; Ogg Opus can't through ffmpeg. Optimised art is re-encoded as JPEG at the same
+        // resolution (full-range 4:2:0, which every player reads).
+        if (info.HasCoverArt && format != FileFormat.Ogg && options.CoverArt != CoverArtMode.Remove)
+        {
+            args.AddRange(["-map", "0:v:0"]);
+            args.AddRange(options.CoverArt == CoverArtMode.Optimise
+                ? ["-c:v", "mjpeg", "-q:v", CoverArtJpegQuantiser.ToString(CultureInfo.InvariantCulture), "-pix_fmt", "yuvj420p"]
+                : ["-c:v", "copy"]);
+            args.AddRange(["-disposition:v:0", "attached_pic"]);
+        }
+
+        // atempo keeps the pitch; it only takes 0.5–2 per filter, so bigger changes are chained.
+        if (Math.Abs(options.Speed - 1) > 0.001)
+            args.AddRange(["-af", Video.VideoArguments.AtempoChain(options.Speed)]);
 
         var bitrate = kbps.ToString(CultureInfo.InvariantCulture) + "k";
+        string[] copy = ["-c:a", "copy"];
         switch (format)
         {
             case FileFormat.Mp3:
-                args.AddRange(["-c:a", "libmp3lame", "-b:a", bitrate, "-id3v2_version", "3"]);
-                if (info.SampleRate > 48000)
+                args.AddRange(options.CopyAudio ? copy : ["-c:a", "libmp3lame", "-b:a", bitrate]);
+                args.AddRange(["-id3v2_version", "3"]);
+                if (info.SampleRate > 48000 && !options.CopyAudio)
                     args.AddRange(["-ar", "48000"]); // MP3 tops out at 48 kHz
                 break;
             case FileFormat.Ogg:
-                args.AddRange(["-c:a", "libopus", "-b:a", bitrate, "-ar", "48000"]); // Opus always runs at 48 kHz
+                args.AddRange(options.CopyAudio ? copy : ["-c:a", "libopus", "-b:a", bitrate, "-ar", "48000"]); // Opus always runs at 48 kHz
                 break;
             default:
-                args.AddRange(["-c:a", "aac", "-b:a", bitrate, "-movflags", "+faststart"]);
-                if (info.SampleRate > 96000)
+                args.AddRange(options.CopyAudio ? copy : ["-c:a", "aac", "-b:a", bitrate]);
+                args.AddRange(["-movflags", "+faststart"]);
+                if (info.SampleRate > 96000 && !options.CopyAudio)
                     args.AddRange(["-ar", "96000"]);
                 break;
         }
@@ -202,3 +230,9 @@ public sealed class AudioOptimiser(ToolLocator tools, AppPaths paths)
         return args;
     }
 }
+
+/// <summary>
+/// How audio is re-encoded beyond its bitrate: playback speed (1 = unchanged), what happens to cover art, and whether
+/// the sound itself is copied unchanged (when only the cover art has anything to gain).
+/// </summary>
+internal sealed record AudioEncodeOptions(double Speed = 1, CoverArtMode CoverArt = CoverArtMode.Keep, bool CopyAudio = false);

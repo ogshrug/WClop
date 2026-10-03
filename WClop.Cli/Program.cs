@@ -19,6 +19,7 @@ internal static class Program
     private const string Usage = """
         Usage:
           wclop optimise <file or folder>... [options]
+          wclop crop <file or folder>... --size WxH | --aspect 16:9 [--smart] [options]
           wclop batch <file or folder>...         Open the batch window (needs the app)
           wclop stop                              Stop everything the app is doing
           wclop settings list                     Every setting name
@@ -26,6 +27,7 @@ internal static class Program
           wclop settings set <name> <value>       Lists are comma-separated
           wclop settings show                     Open the settings window
           wclop pipeline …                        Pipelines; see wclop pipeline help
+          wclop mcp                               Serve AI assistants (MCP over stdio); see Settings → Pipelines
 
         Options for optimise:
           --preset <name>       Normal, Aggressive, Maximum, "Half size", "Under 10 MB", "Under 25 MB", Gentle
@@ -38,6 +40,12 @@ internal static class Program
           --allow-larger        Keep the output even if it isn't smaller
           --no-wait             Hand the files to the app and return straight away
           --local               Don't use the running app
+
+        Options for crop (also --keep, --output, --no-wait, --local):
+          --size <WxH>          Crop to this many pixels from the centre, e.g. 1920x1080 (1920x: width only, x1080: height)
+          --aspect <w:h>        Crop to a shape, e.g. 16:9, 4:3, 1:1, 9:16, 1.91:1 (with --size 1280x: that wide)
+          --smart               Keep the most detailed part of an image instead of the centre
+        Cropping always starts from the original, and the original is backed up.
         """;
 
     public static async Task<int> Main(string[] args)
@@ -57,10 +65,12 @@ internal static class Program
             return args.FirstOrDefault()?.ToLowerInvariant() switch
             {
                 "optimise" or "optimize" => await OptimiseAsync(args[1..], batch: false, cts.Token),
+                "crop" => await OptimiseAsync(args[1..], batch: false, cts.Token, crop: true),
                 "batch" => await OptimiseAsync(args[1..], batch: true, cts.Token),
                 "stop" => await StopAsync(cts.Token),
                 "settings" => await SettingsAsync(args[1..], cts.Token),
                 "pipeline" or "pipelines" => await PipelineCommands.RunAsync(args[1..], cts.Token),
+                "mcp" => await Mcp.McpCommand.RunAsync(cts.Token),
                 _ => Fail(Usage),
             };
         }
@@ -83,9 +93,10 @@ internal static class Program
 
     private static readonly TimeSpan ConnectTimeout = TimeSpan.FromMilliseconds(800);
 
-    // optimise / batch
+    // optimise / batch / crop
 
-    private static async Task<int> OptimiseAsync(string[] args, bool batch, CancellationToken cancellationToken)
+    /// <summary><c>crop</c> takes the same path as <c>optimise</c>: the app over IPC if it's running, else locally.</summary>
+    private static async Task<int> OptimiseAsync(string[] args, bool batch, CancellationToken cancellationToken, bool crop = false)
     {
         var files = new List<string>();
         var command = new OptimiseCommand { Paths = files, Batch = batch, Wait = true };
@@ -125,6 +136,15 @@ internal static class Program
                 case "--local":
                     local = true;
                     break;
+                case "--size" when crop && Value() is { } size:
+                    command = command with { CropSize = size };
+                    break;
+                case "--aspect" or "--aspect-ratio" or "--ratio" when crop && Value() is { } aspect:
+                    command = command with { CropAspect = aspect };
+                    break;
+                case "--smart" when crop:
+                    command = command with { SmartCrop = true };
+                    break;
                 case "--force":
                     break; // Always on for files named explicitly; kept so older scripts still work.
                 case var option when option.StartsWith("--", StringComparison.Ordinal):
@@ -137,6 +157,8 @@ internal static class Program
 
         if (files.Count == 0)
             return Fail(Usage);
+        if (crop && command.CropSize is null && command.CropAspect is null)
+            return Fail("Say what to crop to: --size 1920x1080 or --aspect 16:9");
 
         var builder = new OptimisationRequestBuilder(command);
         if (builder.Error is { } error)
@@ -193,15 +215,19 @@ internal static class Program
         {
             try
             {
-                var result = builder.ConvertTo is { } target
+                var result = builder.Crop is { } crop
+                    ? await service.CropAsync(await service.DescribeAsync(file, cancellationToken), crop,
+                        request.Behaviour ?? OutputBehaviour.InPlace, null, cancellationToken)
+                    : builder.ConvertTo is { } target
                     ? await service.ConvertAsync(await service.DescribeAsync(file, cancellationToken), target, null, cancellationToken)
                     : await service.OptimiseAsync(file, request, null, cancellationToken);
                 var formatChange = result.InputFormat != result.OutputFormat ? $" ({result.InputFormat} → {result.OutputFormat})" : "";
                 var cached = result.FromCache ? " [cached]" : "";
+                var cropped = result.Crop is { } size ? $" (cropped to {size})" : "";
                 var missed = result.MissedTarget ? " [couldn't reach the target; smallest kept]" : "";
                 Console.WriteLine(
                     $"{file}: {FormatBytes(result.OldSize)} → {FormatBytes(result.NewSize)} " +
-                    $"(-{result.SavedFraction:P0}){formatChange}{cached}{missed}\n  → {result.OutputPath}");
+                    $"(-{result.SavedFraction:P0}){cropped}{formatChange}{cached}{missed}\n  → {result.OutputPath}");
             }
             catch (OptimisationException e)
             {

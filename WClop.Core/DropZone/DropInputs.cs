@@ -169,6 +169,17 @@ public static class DropZoneGeometry
         return (edge, Math.Round(Math.Clamp(percent, 0, 100), 1));
     }
 
+    /// <summary>
+    /// A <paramref name="width"/> × <paramref name="height"/> zone centred on the cursor (the modifier-tap drop zone),
+    /// moved as little as needed to stay fully inside <paramref name="area"/>.
+    /// </summary>
+    public static ScreenRect AtCursor(int x, int y, int width, int height, ScreenRect area)
+    {
+        var left = Math.Clamp(x - width / 2, area.Left, Math.Max(area.Left, area.Right - width));
+        var top = Math.Clamp(y - height / 2, area.Top, Math.Max(area.Top, area.Bottom - height));
+        return new ScreenRect(left, top, left + width, top + height);
+    }
+
     /// <summary>Whether (x, y) is within <paramref name="reach"/> of a rectangle.</summary>
     public static bool IsNear(int x, int y, ScreenRect rect, int reach)
     {

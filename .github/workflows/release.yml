@@ -1,9 +1,13 @@
 name: Release
 
-# Push a tag like v0.13.0 to build the installer and publish a GitHub release with it:
+# Push a tag like v0.13.0 to build the installers and publish a GitHub release with them:
 #   git tag v0.13.0 && git push origin v0.13.0
-# Optional code signing: add repository secrets WCLOP_SIGNING_CERT (the .pfx, base64) and
-# WCLOP_SIGNING_PASSWORD. Without them the installer is built unsigned.
+# Builds WClop-<version>-x64.msi and WClop-<version>-arm64.msi. Two optional extras are skipped until they're set up
+# (docs/RELEASING.md):
+# - Code signing with Azure Artifact Signing (formerly Trusted Signing): secrets AZURE_TENANT_ID, AZURE_CLIENT_ID and
+#   AZURE_CLIENT_SECRET (leave the secret out to sign in with OIDC instead), variables AZURE_SIGNING_ENDPOINT,
+#   AZURE_SIGNING_ACCOUNT and AZURE_SIGNING_PROFILE. Without them the installers are built unsigned.
+# - A winget-pkgs pull request for the new version: secret WINGET_TOKEN.
 
 on:
   push:
@@ -16,13 +20,29 @@ on:
 
 permissions:
   contents: write
+  id-token: write  # only used to sign in to Azure with OIDC
+
+env:
+  TAG: ${{ github.event.inputs.tag || github.ref_name }}
 
 jobs:
-  release:
+  build:
+    name: Build (${{ matrix.arch }})
     runs-on: windows-latest
     timeout-minutes: 45
+    # A fixed OIDC subject (repo:<owner>/WClop:environment:release) for Azure's federated credential, whatever the tag.
+    environment: release
+    strategy:
+      matrix:
+        include:
+          - arch: x64
+            tools: tools
+            publish: artifacts\publish
+          - arch: arm64
+            tools: tools-arm64
+            publish: artifacts\publish-arm64
     env:
-      TAG: ${{ github.event.inputs.tag || github.ref_name }}
+      ARCH: ${{ matrix.arch }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -41,52 +61,176 @@ jobs:
       - name: Cache tools
         uses: actions/cache@v4
         with:
-          path: tools
-          key: tools-${{ runner.os }}-${{ hashFiles('scripts/fetch-tools.ps1') }}
+          path: ${{ matrix.tools }}
+          key: ${{ matrix.tools }}-${{ runner.os }}-${{ hashFiles('scripts/fetch-tools.ps1') }}
 
       - name: Fetch tools
         shell: pwsh
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: ./scripts/fetch-tools.ps1
+        run: ./scripts/fetch-tools.ps1 -Arch $env:ARCH
 
-      - name: Import signing certificate
+      - name: Signing configured?
+        id: signing
         shell: pwsh
         env:
-          CERT: ${{ secrets.WCLOP_SIGNING_CERT }}
-          CERT_PASSWORD: ${{ secrets.WCLOP_SIGNING_PASSWORD }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_SIGNING_ENDPOINT: ${{ vars.AZURE_SIGNING_ENDPOINT }}
+          AZURE_SIGNING_ACCOUNT: ${{ vars.AZURE_SIGNING_ACCOUNT }}
+          AZURE_SIGNING_PROFILE: ${{ vars.AZURE_SIGNING_PROFILE }}
         run: |
-          if (-not $env:CERT) { Write-Host 'No signing certificate configured; building unsigned.'; exit 0 }
-          $pfx = Join-Path $env:RUNNER_TEMP 'signing.pfx'
-          [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:CERT))
-          $password = ConvertTo-SecureString $env:CERT_PASSWORD -AsPlainText -Force
-          $cert = Import-PfxCertificate -FilePath $pfx -CertStoreLocation Cert:\CurrentUser\My -Password $password
-          Remove-Item $pfx
-          "WCLOP_SIGN_THUMBPRINT=$($cert.Thumbprint)" >> $env:GITHUB_ENV
+          $needed = 'AZURE_TENANT_ID', 'AZURE_CLIENT_ID', 'AZURE_SIGNING_ENDPOINT', 'AZURE_SIGNING_ACCOUNT', 'AZURE_SIGNING_PROFILE'
+          $missing = @($needed | Where-Object { -not [Environment]::GetEnvironmentVariable($_) })
+          if ($missing) {
+            Write-Host "Not signing: $($missing -join ', ') not set (docs/RELEASING.md)."
+            'enabled=false' >> $env:GITHUB_OUTPUT
+            exit 0
+          }
+          'enabled=true' >> $env:GITHUB_OUTPUT
+          # No client secret: sign in with OIDC (a federated credential on the app registration) instead.
+          "oidc=$(([string](-not $env:AZURE_CLIENT_SECRET)).ToLowerInvariant())" >> $env:GITHUB_OUTPUT
 
-      - name: Build installer (runs the tests first)
+      # The x64 build runs the tests; the arm64 one builds the same code, so it skips them.
+      - name: Publish (runs the tests first)
         shell: pwsh
-        run: ./scripts/package.ps1 -Version $env:VERSION
+        run: ./scripts/package.ps1 -Version $env:VERSION -Arch $env:ARCH -PublishOnly -SkipTests:($env:ARCH -ne 'x64')
+
+      - name: Sign in to Azure (OIDC)
+        if: steps.signing.outputs.enabled == 'true' && steps.signing.outputs.oidc == 'true'
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          allow-no-subscriptions: true
+
+      # WClop's own binaries, before they go into the MSI (the same list package.ps1 signs with a local certificate).
+      # The bundled tools are other projects' binaries and stay as their authors shipped them.
+      - name: Sign binaries
+        if: steps.signing.outputs.enabled == 'true'
+        uses: azure/artifact-signing-action@v2
+        with:
+          azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          azure-client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+          exclude-environment-credential: ${{ steps.signing.outputs.oidc }}
+          endpoint: ${{ vars.AZURE_SIGNING_ENDPOINT }}
+          signing-account-name: ${{ vars.AZURE_SIGNING_ACCOUNT }}
+          certificate-profile-name: ${{ vars.AZURE_SIGNING_PROFILE }}
+          files: |
+            ${{ github.workspace }}\${{ matrix.publish }}\WClop.exe
+            ${{ github.workspace }}\${{ matrix.publish }}\WClop.dll
+            ${{ github.workspace }}\${{ matrix.publish }}\WClop.Core.dll
+            ${{ github.workspace }}\${{ matrix.publish }}\wclop-cli.exe
+            ${{ github.workspace }}\${{ matrix.publish }}\wclop-cli.dll
+          file-digest: SHA256
+          timestamp-rfc3161: http://timestamp.acs.microsoft.com
+          timestamp-digest: SHA256
+          description: WClop
+          description-url: https://github.com/${{ github.repository }}
+
+      - name: Build installer
+        shell: pwsh
+        run: ./scripts/package.ps1 -Version $env:VERSION -Arch $env:ARCH -MsiOnly
+
+      - name: Sign installer
+        if: steps.signing.outputs.enabled == 'true'
+        uses: azure/artifact-signing-action@v2
+        with:
+          azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          azure-client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+          exclude-environment-credential: ${{ steps.signing.outputs.oidc }}
+          endpoint: ${{ vars.AZURE_SIGNING_ENDPOINT }}
+          signing-account-name: ${{ vars.AZURE_SIGNING_ACCOUNT }}
+          certificate-profile-name: ${{ vars.AZURE_SIGNING_PROFILE }}
+          files: ${{ github.workspace }}\artifacts\WClop-${{ env.VERSION }}-${{ matrix.arch }}.msi
+          file-digest: SHA256
+          timestamp-rfc3161: http://timestamp.acs.microsoft.com
+          timestamp-digest: SHA256
+          description: WClop
+          description-url: https://github.com/${{ github.repository }}
+
+      - name: Check signatures
+        if: steps.signing.outputs.enabled == 'true'
+        shell: pwsh
+        env:
+          PUBLISH: ${{ matrix.publish }}
+        run: |
+          $files = @('WClop.exe', 'WClop.dll', 'WClop.Core.dll', 'wclop-cli.exe', 'wclop-cli.dll' | ForEach-Object { Join-Path $env:PUBLISH $_ }) +
+            "artifacts/WClop-$env:VERSION-$env:ARCH.msi"
+          $bad = $files | Get-AuthenticodeSignature | Where-Object Status -ne 'Valid'
+          if ($bad) { $bad | Format-Table Path, Status, StatusMessage -AutoSize | Out-String | Write-Host; throw 'Some files are not signed' }
+          Write-Host "$($files.Count) files signed by $((Get-AuthenticodeSignature $files[-1]).SignerCertificate.Subject)"
 
       - name: Checksum
         shell: pwsh
         run: |
-          $msi = "artifacts/WClop-$env:VERSION-x64.msi"
-          $hash = (Get-FileHash $msi -Algorithm SHA256).Hash.ToLowerInvariant()
+          $name = "WClop-$env:VERSION-$env:ARCH.msi"
+          $hash = (Get-FileHash "artifacts/$name" -Algorithm SHA256).Hash.ToLowerInvariant()
           # LF, not CRLF, so `sha256sum -c` accepts it on any system.
-          [IO.File]::WriteAllText("$PWD/$msi.sha256", "$hash  WClop-$env:VERSION-x64.msi`n")
+          [IO.File]::WriteAllText("$PWD/artifacts/$name.sha256", "$hash  $name`n")
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: installer-${{ matrix.arch }}
+          path: |
+            artifacts/WClop-${{ env.VERSION }}-${{ matrix.arch }}.msi
+            artifacts/WClop-${{ env.VERSION }}-${{ matrix.arch }}.msi.sha256
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: installer-*
+          merge-multiple: true
+          path: artifacts
 
       - name: Publish release
         shell: pwsh
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
         run: |
-          # A copy under a fixed name, so releases/latest/download/WClop-x64.msi (the README's button) always works.
-          Copy-Item "artifacts/WClop-$env:VERSION-x64.msi" artifacts/WClop-x64.msi
-          $files = "artifacts/WClop-$env:VERSION-x64.msi", "artifacts/WClop-$env:VERSION-x64.msi.sha256", "artifacts/WClop-x64.msi"
+          $version = $env:TAG.TrimStart('v')
+          $files = @()
+          foreach ($arch in 'x64', 'arm64') {
+            # A copy under a fixed name, so releases/latest/download/WClop-<arch>.msi (the README's button) always works.
+            Copy-Item "artifacts/WClop-$version-$arch.msi" "artifacts/WClop-$arch.msi"
+            $files += "artifacts/WClop-$version-$arch.msi", "artifacts/WClop-$version-$arch.msi.sha256", "artifacts/WClop-$arch.msi"
+          }
           gh release view $env:TAG *> $null
           if ($LASTEXITCODE -eq 0) {
             gh release upload $env:TAG @files --clobber
           } else {
-            gh release create $env:TAG @files --title "WClop $env:VERSION" --generate-notes
+            gh release create $env:TAG @files --title "WClop $version" --generate-notes
           }
+
+  # Opens a pull request on microsoft/winget-pkgs for the new version. Needs the package to be in winget already (the
+  # first version is submitted by hand) and a WINGET_TOKEN secret: a classic personal access token with public_repo
+  # scope, from an account with a fork of winget-pkgs (docs/RELEASING.md).
+  winget:
+    needs: publish
+    runs-on: windows-latest
+    timeout-minutes: 20
+    env:
+      WINGET_TOKEN: ${{ secrets.WINGET_TOKEN }}
+    steps:
+      - name: winget configured?
+        if: env.WINGET_TOKEN == ''
+        run: echo "No WINGET_TOKEN secret; not updating winget."
+
+      - uses: vedantmgoyal9/winget-releaser@v2
+        if: env.WINGET_TOKEN != ''
+        with:
+          identifier: ogshrug.WClop
+          # The versioned installers only; the fixed-name copies are the same files.
+          installers-regex: '^WClop-\d+\.\d+\.\d+-(x64|arm64)\.msi$'
+          release-tag: ${{ env.TAG }}
+          token: ${{ secrets.WINGET_TOKEN }}

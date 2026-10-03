@@ -39,6 +39,8 @@ public sealed class OptimisationJob : INotifyPropertyChanged
     private double? _progress;
     private FileOptimisationResult? _result;
     private string? _currentPath;
+    private string _displayName;
+    private string? _sourcePath;
     private bool _isVisible;
 
     internal OptimisationJob(string key, JobSource source, string displayName, string? sourcePath, string status, bool visible)
@@ -46,8 +48,8 @@ public sealed class OptimisationJob : INotifyPropertyChanged
         _isVisible = visible;
         Key = key;
         Source = source;
-        DisplayName = displayName;
-        SourcePath = sourcePath;
+        _displayName = displayName;
+        _sourcePath = sourcePath;
         _currentPath = sourcePath;
         _status = status;
     }
@@ -60,8 +62,17 @@ public sealed class OptimisationJob : INotifyPropertyChanged
     public string Key { get; }
 
     public JobSource Source { get; }
-    public string DisplayName { get; }
-    public string? SourcePath { get; }
+    public string DisplayName
+    {
+        get => _displayName;
+        private set => Set(ref _displayName, value);
+    }
+
+    public string? SourcePath
+    {
+        get => _sourcePath;
+        private set => Set(ref _sourcePath, value);
+    }
     public DateTime Created { get; } = DateTime.Now;
 
     public JobState State
@@ -131,6 +142,7 @@ public sealed class OptimisationJob : INotifyPropertyChanged
         {
             { TargetBytes: { } target, MissedTarget: true } => $"Couldn't get under {FormatBytes(target)}: this is the smallest",
             { TargetBytes: { } target } => $"Fits under {FormatBytes(target)}",
+            { Crop: { } crop } => $"Cropped to {crop}",
             { IsConversion: true } => "Converted",
             _ => "Optimised",
         };
@@ -149,6 +161,23 @@ public sealed class OptimisationJob : INotifyPropertyChanged
         CurrentPath = restoredPath;
         Status = "Restored original";
         State = JobState.Restored;
+    }
+
+    /// <summary>
+    /// The result's file was renamed (from the card): the job, its result and its name follow, so later
+    /// adjustments and restores act on the file where it is now.
+    /// </summary>
+    public void MarkMoved(string oldPath, string newPath)
+    {
+        static bool Same(string? a, string b) => a is not null && string.Equals(a, b, StringComparison.OrdinalIgnoreCase);
+
+        if (Result is { } result && Same(result.OutputPath, oldPath))
+            Result = result with { OutputPath = newPath };
+        if (Same(SourcePath, oldPath))
+            SourcePath = newPath;
+        DisplayName = Path.GetFileName(newPath);
+        if (Same(CurrentPath, oldPath))
+            CurrentPath = newPath;
     }
 
     public static string FormatBytes(long bytes) => bytes switch

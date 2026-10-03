@@ -13,7 +13,7 @@ These run as separate programs from the `tools` folder next to WClop.exe. Each k
 | Tool | Licence | Source |
 | --- | --- | --- |
 | Ghostscript (Artifex Software) | AGPL-3.0 | https://github.com/ArtifexSoftware/ghostpdl |
-| FFmpeg, FFprobe (gyan.dev "essentials" build) | GPL-3.0 | https://ffmpeg.org/download.html, build details at https://www.gyan.dev/ffmpeg/builds/ |
+| FFmpeg, FFprobe (gyan.dev "essentials" build; BtbN's GPL build in the arm64 installer) | GPL-3.0 | https://ffmpeg.org/download.html, build details at https://www.gyan.dev/ffmpeg/builds/ and https://github.com/BtbN/FFmpeg-Builds |
 | pngquant | GPL-3.0 | https://github.com/kornelski/pngquant |
 | jpegoptim | GPL-3.0 | https://github.com/tjko/jpegoptim |
 | gifsicle | GPL-2.0 | https://github.com/kohler/gifsicle |
@@ -27,6 +27,7 @@ These run as separate programs from the `tools` folder next to WClop.exe. Each k
 | .NET runtime, WPF, Windows Forms (Microsoft) | MIT |
 | Microsoft.Data.Sqlite, SQLitePCLRaw, SQLite | MIT; SQLite is public domain |
 | PdfPig (UglyToad) | Apache-2.0 |
+| ModelContextProtocol.Core, the MCP C# SDK (`wclop mcp`), with Microsoft.Extensions.AI.Abstractions | Apache-2.0; MIT |
 | xUnit, coverlet (tests only, not shipped) | Apache-2.0 / MIT |
 | WiX Toolset 5 (builds the installer, not shipped) | MS-RL |
 

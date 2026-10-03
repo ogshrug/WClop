@@ -1,0 +1,53 @@
+{
+    "version": "0.14.2",
+    "description": "Automatic image, video, PDF and audio optimiser: optimises what you copy, drop and save.",
+    "homepage": "https://github.com/ogshrug/WClop",
+    "license": "GPL-3.0-or-later",
+    "notes": [
+        "WClop is in the Start menu (Scoop Apps) and on the command line as `wclop`.",
+        "Scoop keeps it up to date (scoop update wclop); its own updater only updates the MSI install."
+    ],
+    "architecture": {
+        "64bit": {
+            "url": "https://github.com/ogshrug/WClop/releases/download/v0.14.2/WClop-0.14.2-x64.msi",
+            "hash": "15f6976f50f1e288e3a1927af8aeefb83e7c2457f4311b53c9c25b1307df125c"
+        }
+    },
+    "extract_dir": "LocalApp\\Programs\\WClop",
+    "bin": [
+        [
+            "wclop-cli.exe",
+            "wclop"
+        ]
+    ],
+    "shortcuts": [
+        [
+            "WClop.exe",
+            "WClop"
+        ]
+    ],
+    "post_install": "Start-Process \"$dir\\WClop.exe\" -ArgumentList '--register' -Wait",
+    "pre_uninstall": [
+        "Start-Process \"$dir\\WClop.exe\" -ArgumentList '--quit' -Wait",
+        "if ($cmd -eq 'uninstall') { Start-Process \"$dir\\WClop.exe\" -ArgumentList '--unregister' -Wait }"
+    ],
+    "checkver": {
+        "github": "https://github.com/ogshrug/WClop"
+    },
+    "autoupdate": {
+        "architecture": {
+            "64bit": {
+                "url": "https://github.com/ogshrug/WClop/releases/download/v$version/WClop-$version-x64.msi",
+                "hash": {
+                    "url": "$url.sha256"
+                }
+            },
+            "arm64": {
+                "url": "https://github.com/ogshrug/WClop/releases/download/v$version/WClop-$version-arm64.msi",
+                "hash": {
+                    "url": "$url.sha256"
+                }
+            }
+        }
+    }
+}

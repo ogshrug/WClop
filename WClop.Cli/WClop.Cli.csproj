@@ -13,4 +13,13 @@
     <ProjectReference Include="..\WClop.Core\WClop.Core.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="WClop.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The official MCP C# SDK (Apache-2.0), for wclop mcp. -->
+    <PackageReference Include="ModelContextProtocol.Core" Version="2.2.0" />
+  </ItemGroup>
+
 </Project>

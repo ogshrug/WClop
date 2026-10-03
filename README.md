@@ -16,15 +16,17 @@ WClop is a Windows take on [Clop](https://github.com/FuzzyIdeas/Clop) for macOS.
 
 ## What it does
 
-- **Clipboard:** copy an image (Snipping Tool, a browser, anything) and WClop swaps it for an optimised version on the clipboard, usually a fraction of the size, ready to paste.
-- **Drop zone:** drag files towards the edge of your screen and a small tab slides out. Drop on it to optimise; scroll while holding the files to pick a preset (aggressive, half size, "under 10 MB" for Discord, your own pipelines…).
+- **Clipboard:** copy an image (Snipping Tool, a browser, anything) and WClop swaps it for an optimised version on the clipboard, usually a fraction of the size, ready to paste. Turn on *Collect results* to keep every optimised copy on the clipboard and paste them all at once.
+- **Drop zone:** drag files towards the edge of your screen and a small tab slides out. Drop on it to optimise; scroll while holding the files to pick a preset (aggressive, half size, "under 10 MB" for Discord, your own pipelines…). Tap Alt mid-drag to open it right under the mouse instead.
 - **Watched folders:** new screenshots and screen recordings are optimised as they're saved (Pictures\Screenshots and Videos\Captures by default; add any folder).
-- **Explorer:** right-click → *Optimise with WClop*, or *Send to → WClop*. A folder or lots of files open batch mode.
-- **Result cards:** every result shows up as a small card with the before/after size and buttons to restore, downscale, fit under a size, convert, run a pipeline or show the file.
+- **Explorer:** right-click → *Optimise with WClop*, *Send to → WClop* or *Open with → WClop*. A folder or lots of files open batch mode.
+- **Result cards:** every result shows up as a small card with the before/after size, a one-click format bar (with codecs, like `mp4 · HEVC`), downscale and compression sliders, crop to a size or aspect ratio, and buttons to restore, fit under a size, run a pipeline, rename, *Edit with…*, share or show the file. Lots of results collapse into a compact list you can multi-select and drag out together.
 - **Hotkeys:** Ctrl+Alt+Shift + Z optimises whatever is on the clipboard, U restores, − and 1–9 downscale, A goes aggressive, and more.
 - **Pipelines:** a small automation language, for example `if(regex: "^screenshot") -> downscale(longEdge: 1920) -> convert(webp) -> move(to: "~/Pictures/Web/")`, run from cards, the drop zone, folders, the clipboard or the command line. Includes watermarking images, videos and GIFs with your logo.
 - **Batch mode:** optimise whole folders with a progress table, with every original backed up first and a one-click *Restore all*.
-- **Command line:** `wclop optimise`, `wclop pipeline run`, `wclop settings set …`, talking to the running app.
+- **Command line:** `wclop optimise`, `wclop crop`, `wclop pipeline run`, `wclop settings set …`, talking to the running app.
+- **Settings search:** Ctrl+F in Settings finds any option by name, typos and American spellings included.
+- **AI assistants:** `wclop mcp` lets Claude and other MCP assistants optimise, convert, run and write pipelines and change settings; *Settings → Pipelines* shows the configuration to copy. Scripts stay off limits to them unless you allow it.
 
 Originals are backed up before anything is replaced, output is never allowed to be larger than the input, and files WClop has already optimised are marked so they're never processed twice.
 
@@ -39,7 +41,9 @@ Originals are backed up before anything is replaced, output is never allowed to 
 
 ## Install
 
-Download `WClop-<version>-x64.msi` from [Releases](https://github.com/ogshrug/WClop/releases) and run it. It installs for your user only (no administrator rights), adds the Explorer menu, Send To, a Start menu entry and the `wclop` command, and starts WClop. Windows 10 or 11, x64. Nothing else needs installing: .NET and the tools are included.
+Download `WClop-<version>-x64.msi` from [Releases](https://github.com/ogshrug/WClop/releases) and run it. It installs for your user only (no administrator rights), adds the Explorer menu, Send To, Open with, a Start menu entry and the `wclop` command, and starts WClop. Windows 10 or 11, x64. Nothing else needs installing: .NET and the tools are included.
+
+On a Windows on Arm PC, take `WClop-<version>-arm64.msi` instead ([direct link](https://github.com/ogshrug/WClop/releases/latest/download/WClop-arm64.msi)). It needs Windows 11: WClop itself and ffmpeg are native Arm, while the image and PDF tools (pngquant, jpegoptim, gifsicle, ExifTool, Ghostscript) have no Arm builds and run under Windows 11's x64 emulation.
 
 The installer isn't code-signed yet, so SmartScreen may say *Windows protected your PC*: choose **More info → Run anyway**. Each release lists the installer's SHA-256 checksum.
 
@@ -57,19 +61,21 @@ dotnet build WClop.sln
 dotnet test WClop.Tests/WClop.Tests.csproj
 dotnet run --project WClop         # the app (tray icon)
 ./scripts/package.ps1              # the installer, into artifacts/
+./scripts/fetch-tools.ps1 -Arch arm64; ./scripts/package.ps1 -Arch arm64   # the Windows on Arm installer
 ```
 
-Releases are built by GitHub Actions: pushing a tag like `v1.2.3` runs the tests, builds the installer and publishes it.
+Releases are built by GitHub Actions: pushing a tag like `v1.2.3` runs the tests, builds the installers and publishes them. [docs/RELEASING.md](docs/RELEASING.md) covers code signing, winget and Scoop.
 
 ## Project layout
 
 ```
 WClop/          The app: tray, clipboard, drop zone, result cards, settings, hotkeys, batch, Explorer integration
 WClop.Core/     Engines and logic: optimisation, video/PDF/audio, pipelines, storage, settings, local API
-WClop.Cli/      The wclop command
+WClop.Cli/      The wclop command, and its MCP server for AI assistants
 WClop.Tests/    xUnit tests
 installer/      WiX 5 installer
-scripts/        fetch-tools, package, make-icon
+packaging/      winget manifest templates and the Scoop manifest
+scripts/        fetch-tools, package, winget-manifest, make-icon
 ```
 
 ## Thanks

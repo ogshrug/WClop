@@ -75,10 +75,21 @@
                 </StackPanel>
             </DockPanel>
 
+            <TextBlock Style="{StaticResource Section}" Text="Connect an AI assistant" />
+            <TextBlock Style="{StaticResource Hint}"
+                       Text="Claude and other assistants that support MCP can optimise, convert, run and write pipelines and change settings through WClop. Add this to Claude Desktop's claude_desktop_config.json (Settings → Developer → Edit Config) or to a Claude Code .mcp.json, then restart the assistant." />
+            <TextBox x:Name="McpConfigBox" IsReadOnly="True" TextWrapping="Wrap" FontFamily="Cascadia Mono, Consolas" FontSize="12"
+                     AutomationProperties.Name="AI assistant configuration" />
+            <WrapPanel Margin="0,6,0,0">
+                <Button Content="Copy" Padding="12,4" Margin="0,0,8,4" Click="CopyMcpConfig_Click" />
+                <Button Content="Copy the Claude Code command" Padding="12,4" Margin="0,0,8,4" Click="CopyMcpCommand_Click" />
+            </WrapPanel>
+            <TextBlock x:Name="McpCopiedText" Style="{StaticResource Hint}" />
+
             <TextBlock Style="{StaticResource Section}" Text="Safety" />
             <CheckBox x:Name="AssistantScriptsBox" Content="Let AI assistants run pipelines that include runScript steps" Checked="Flag_Click" Unchecked="Flag_Click" />
             <TextBlock Style="{StaticResource Hint}"
-                       Text="Pipelines you run yourself can always run scripts. Requests from AI assistants (the MCP server) can't unless this is on." />
+                       Text="Pipelines you run yourself can always run scripts. Requests from AI assistants (the MCP server) can't run or save pipelines with runScript (or openWith a named app) unless this is on, and assistants can never turn this on or make a pipeline run automatically." />
 
             <Expander Header="Step reference" Margin="0,12,0,0">
                 <TextBox x:Name="ReferenceBox" IsReadOnly="True" Height="320" TextWrapping="Wrap" FontFamily="Cascadia Mono, Consolas"

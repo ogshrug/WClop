@@ -108,7 +108,11 @@ namespace WClop
                 imagesFolderItem.Checked = settings.Watching.Images.Enabled;
                 Refresh();
             };
-            menu.Items.Add("Clear results", null, (_, _) => results.ClearAll());
+            menu.Items.Add("Clear results", null, (_, _) =>
+            {
+                results.ClearAll();
+                clipboard.ClearCollection();
+            });
             menu.Items.Add("Batch optimise a folder…", null, (_, _) => BatchRequested?.Invoke());
             menu.Items.Add(new ToolStripSeparator());
             menu.Items.Add("Open working folder", null, (_, _) => Open(paths.WorkDir));

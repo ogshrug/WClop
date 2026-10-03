@@ -20,8 +20,11 @@ public sealed record FileOptimisationRequest
     /// <summary>Downscale to this fraction of the original size (0–1); null means full size (or the previous scale).</summary>
     public double? Scale { get; init; }
 
-    /// <summary>Video playback speed (2 = twice as fast); null means unchanged (or the previous speed).</summary>
+    /// <summary>Video or audio playback speed (2 = twice as fast); null means unchanged (or the previous speed).</summary>
     public double? Speed { get; init; }
+
+    /// <summary>Video, with <see cref="Speed"/>: stay at the source frame rate instead of keeping every frame.</summary>
+    public bool DropFrames { get; init; }
 
     /// <summary>PDF: compress images to this DPI instead of the settings (the − key steps it down).</summary>
     public int? PdfDpi { get; init; }
@@ -54,7 +57,7 @@ public sealed record FileOptimisationResult(
     /// <summary>Fraction of the original size this output was scaled to (1 = full size).</summary>
     public double Scale { get; init; } = 1;
 
-    /// <summary>Video playback speed of this output (1 = unchanged).</summary>
+    /// <summary>Video or audio playback speed of this output (1 = unchanged).</summary>
     public double Speed { get; init; } = 1;
 
     /// <summary>The compression factor used, so adjustments can keep it.</summary>
@@ -81,6 +84,9 @@ public sealed record FileOptimisationResult(
 
     /// <summary>A pipeline asked for no result card.</summary>
     public bool HideResult { get; init; }
+
+    /// <summary>Cropped from the original to this size ("1280×720"); like a conversion, it can be restored but not adjusted.</summary>
+    public string? Crop { get; init; }
 
     public MediaKind Kind => InputFormat.Kind();
 }
@@ -121,6 +127,7 @@ public sealed partial class FileOptimisationService
         _videoConverter = new VideoConverter(tools, paths);
         _pdfs = new PdfOptimiser(tools, paths);
         _audio = new AudioOptimiser(tools, paths);
+        Cropper = new Cropping.MediaCropper(tools, paths);
         _recentWrites = recentWrites;
         _placer = new FilePlacer(_markers, recentWrites);
         Paths = paths;
@@ -131,6 +138,9 @@ public sealed partial class FileOptimisationService
     public ToolLocator Tools { get; }
 
     public OptimisationMarkers Markers => _markers;
+
+    /// <summary>Crops images and videos; shared with the <c>crop</c> pipeline step.</summary>
+    public Cropping.MediaCropper Cropper { get; }
 
     /// <summary>Optimises an image or a video, whichever <paramref name="path"/> really is.</summary>
     public Task<FileOptimisationResult> OptimiseAsync(
@@ -315,10 +325,13 @@ public sealed partial class FileOptimisationService
 
     /// <summary>
     /// What a job runs with, resolved from the request, the previous result and settings: compression factor, scale
-    /// and speed (images / video), and PDF DPI (null = the settings' mode).
+    /// and speed (images / video / audio), and PDF DPI (null = the settings' mode).
     /// </summary>
     private sealed record Adjustments(int Factor, double Scale, double Speed, int? Dpi)
     {
+        /// <summary>Video: a speed change keeps the source frame rate (see <see cref="FileOptimisationRequest.DropFrames"/>).</summary>
+        public bool DropFrames { get; init; }
+
         /// <summary>A plain optimisation (no resize, speed or DPI change), where "not smaller" means "already compressed".</summary>
         public bool IsPlain => Scale >= 1 && Math.Abs(Speed - 1) < 0.001 && Dpi is null;
 
@@ -331,8 +344,11 @@ public sealed partial class FileOptimisationService
                     _ => settings.Compression.ImageFactor,
                 },
                 kind is MediaKind.Image or MediaKind.Video ? request.Scale ?? previous?.Scale ?? 1 : 1,
-                kind == MediaKind.Video ? request.Speed ?? previous?.Speed ?? 1 : 1,
-                kind == MediaKind.Pdf ? request.PdfDpi ?? previous?.Dpi : null);
+                kind is MediaKind.Video or MediaKind.Audio ? request.Speed ?? previous?.Speed ?? 1 : 1,
+                kind == MediaKind.Pdf ? request.PdfDpi ?? previous?.Dpi : null)
+            {
+                DropFrames = request.DropFrames,
+            };
     }
 
     private sealed record Produced(string Output, FileFormat Format, bool FromCache, string Variant)
@@ -351,7 +367,8 @@ public sealed partial class FileOptimisationService
         {
             MediaKind.Video => VideoVariant(adjustments),
             MediaKind.Pdf => PdfVariant(adjustments),
-            MediaKind.Audio => string.Create(CultureInfo.InvariantCulture, $"audio:f{adjustments.Factor}"),
+            MediaKind.Audio => string.Create(CultureInfo.InvariantCulture,
+                $"audio:f{adjustments.Factor}:x{adjustments.Speed:0.##}:cover{_settings.Compression.AudioCoverArt}"),
             _ => ImageVariant(adjustments, AutoConversionTarget(original)),
         };
         // PDF and audio results carry details (DPI, bitrate) that a cached copy wouldn't, so only images and video reuse.
@@ -376,8 +393,8 @@ public sealed partial class FileOptimisationService
                 return new Produced(pdf.Path, FileFormat.Pdf, false, variant) { Dpi = pdf.Dpi, SourceDpi = pdf.SourceMaxDpi };
 
             case MediaKind.Audio:
-                var audio = await _audio.OptimiseAsync(original, adjustments.Factor, allowLarger, onProgress, cancellationToken)
-                    .ConfigureAwait(false);
+                var audio = await _audio.OptimiseAsync(original, adjustments.Factor, allowLarger, onProgress, cancellationToken,
+                    speed: adjustments.Speed, coverArt: _settings.Compression.AudioCoverArt).ConfigureAwait(false);
                 return new Produced(audio.Path, audio.Format, false, variant) { BitrateKbps = audio.BitrateKbps };
 
             default:
@@ -397,7 +414,7 @@ public sealed partial class FileOptimisationService
     {
         var c = _settings.Compression;
         return string.Create(CultureInfo.InvariantCulture,
-            $"video:f{a.Factor}:t{c.VideoTier}:s{a.Scale:0.##}:x{a.Speed:0.##}:fps{(c.CapVideoFps ? c.VideoFpsTarget : 0)}:noaudio{(c.RemoveAudioFromVideos ? 1 : 0)}");
+            $"video:f{a.Factor}:t{c.VideoTier}:s{a.Scale:0.##}:x{a.Speed:0.##}{(a.DropFrames ? "d" : "")}:fps{(c.CapVideoFps ? c.VideoFpsTarget : 0)}:noaudio{(c.RemoveAudioFromVideos ? 1 : 0)}");
     }
 
     private async Task<Produced> ProduceVideoAsync(
@@ -410,6 +427,7 @@ public sealed partial class FileOptimisationService
             Tier = compression.VideoTier,
             Scale = adjustments.Scale,
             Speed = adjustments.Speed,
+            DropFrames = adjustments.DropFrames,
             FpsCap = compression.CapVideoFps ? compression.VideoFpsTarget : null,
             RemoveAudio = compression.RemoveAudioFromVideos,
             AllowLarger = allowLarger,
@@ -548,6 +566,7 @@ public sealed partial class FileOptimisationService
     /// <summary>
     /// "Convert to…" (§8.8, §9.4): converts a result from its original backup, so quality isn't lost twice.
     /// Images: JPEG, PNG, GIF (optimised afterwards), WebP, AVIF. Videos: GIF (optimised afterwards), WebM, HEVC MP4.
+    /// Audio: MP3, AAC (M4A), Opus (Ogg).
     /// The converted file is saved next to the result (or stays in the working folder for clipboard results);
     /// restoring it removes the conversion and puts the original back.
     /// </summary>
@@ -567,7 +586,12 @@ public sealed partial class FileOptimisationService
         }
         else
         {
-            var placement = kind == MediaKind.Video ? _settings.Files.Videos : _settings.Files.Images;
+            var placement = kind switch
+            {
+                MediaKind.Video => _settings.Files.Videos,
+                MediaKind.Audio => _settings.Files.Audio,
+                _ => _settings.Files.Images,
+            };
             var behaviour = placement.ManuallyConverted;
             // Converting clip.mp4 to HEVC would otherwise be named clip.mp4 again, replacing the source.
             var sameFolderTemplate = FileFormats.FromExtension(previous.OutputPath) == target
@@ -592,6 +616,7 @@ public sealed partial class FileOptimisationService
             Scale = 1,
             Speed = 1,
             IsConversion = true,
+            Crop = null,
         };
     }
 
@@ -609,7 +634,8 @@ public sealed partial class FileOptimisationService
             MediaKind.Image => await _imageConverter.ConvertAsync(input, target, factor, cancellationToken).ConfigureAwait(false),
             MediaKind.Video => await _videoConverter.ConvertAsync(
                 input, target, factor, _settings.Compression.VideoTier, onProgress, cancellationToken).ConfigureAwait(false),
-            _ => throw new UnsupportedFormatException("Only images and videos can be converted"),
+            MediaKind.Audio => await ConvertAudioAsync(input, target, onProgress, cancellationToken).ConfigureAwait(false),
+            _ => throw new UnsupportedFormatException("Only images, videos and audio can be converted"),
         };
 
         if (target is not (FileFormat.Jpeg or FileFormat.Png or FileFormat.Gif))

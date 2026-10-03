@@ -1,11 +1,14 @@
+using System.Diagnostics;
 using System.IO;
 using WClop.Clipboard;
+using WClop.Core.Cropping;
 using WClop.Core.Images;
 using WClop.Core.Media;
 using WClop.Core.Video;
 using WClop.Core.Logging;
 using WClop.Core.Optimisation;
 using WClop.Core.Pipelines;
+using WClop.Core.Settings;
 
 namespace WClop.Results
 {
@@ -183,6 +186,7 @@ namespace WClop.Results
             {
                 MediaKind.Image => ImageConverter.Targets,
                 MediaKind.Video => VideoConverter.Targets,
+                MediaKind.Audio => FileOptimisationService.AudioConversionTargets,
                 _ => [],
             };
             // For a video, "MP4" means HEVC, so it's offered even when the result is already an (H.264) MP4.
@@ -212,6 +216,119 @@ namespace WClop.Results
                     await clipboard.PutResultAsync(converted.OutputPath);
                 return converted;
             }, label);
+        }
+
+        /// <summary>
+        /// The format bar's chips for a result: what its kind converts to, never what it already is (for video and
+        /// audio, by codec: <paramref name="codec"/> as ffprobe names it, or null if unknown).
+        /// </summary>
+        public static IReadOnlyList<FormatChoice> FormatChoicesFor(OptimisationJob job, string? codec)
+        {
+            if (!CanConvert(job))
+                return [];
+            var path = job.CurrentPath is { } current && File.Exists(current) ? current : job.SourcePath;
+            var format = path is null ? job.Result?.OutputFormat ?? FileFormat.Unknown : FileTypeSniffer.Detect(path);
+            // Conversions start from the original, so its kind decides (a video made into a GIF offers WebM and MP4).
+            return FormatChoices.For(KindOf(job), format, codec);
+        }
+
+        /// <summary>The kind of file a job is about.</summary>
+        public static MediaKind KindOf(OptimisationJob job) =>
+            job.Result?.Kind ?? (job.CurrentPath ?? job.SourcePath) switch
+            {
+                { } path when File.Exists(path) => FileTypeSniffer.Detect(path).Kind(),
+                { } path => FileFormats.FromExtension(path).Kind(),
+                _ => MediaKind.Unknown,
+            };
+
+        /// <summary>
+        /// Whether <see cref="Adjust"/> (the card's downscale and compression sliders) can redo this result: finished,
+        /// not a conversion or crop (those start from the original and would lose their work), with an original to use.
+        /// </summary>
+        public static bool CanAdjust(OptimisationJob job) =>
+            job.IsFinished && job.State is not (JobState.Failed or JobState.Cancelled or JobState.Skipped)
+            && job.Result is not { IsConversion: true }
+            && (job.Result is { BackupPath: var backup } && File.Exists(backup)
+                || job.Source is JobSource.File or JobSource.DropZone && job.SourcePath is { } source && File.Exists(source)
+                || job.Source == JobSource.Clipboard);
+
+        /// <summary>The compression factor a result was made with (restoring resets it to the settings').</summary>
+        public static int CurrentFactor(OptimisationJob job, AppSettings settings)
+        {
+            var fallback = KindOf(job) switch
+            {
+                MediaKind.Video => settings.Compression.VideoFactor,
+                MediaKind.Audio => settings.Compression.AudioFactor,
+                _ => settings.Compression.ImageFactor,
+            };
+            return job.State == JobState.Restored ? fallback : job.Result?.Factor ?? fallback;
+        }
+
+        /// <summary>Images and videos can be cropped, always from the original.</summary>
+        public static bool CanCrop(OptimisationJob job) =>
+            job.IsFinished && job.State is not (JobState.Failed or JobState.Cancelled or JobState.Skipped)
+            && KindOf(job) is MediaKind.Image or MediaKind.Video
+            && (job.Result is { BackupPath: var backup } && File.Exists(backup) || job.SourcePath is { } source && File.Exists(source));
+
+        /// <summary>Crops a result from its original (the pipeline's crop, project.md §8.9), as a new job on the same card.</summary>
+        public void Crop(OptimisationJob job, CropSpec crop)
+        {
+            manager.Start(job.Key, job.Source, job.DisplayName, job.SourcePath, async (newJob, cancellationToken) =>
+            {
+                var basis = job.Result is { } result && File.Exists(result.BackupPath)
+                    ? result with { OutputPath = job.CurrentPath ?? result.OutputPath }
+                    : await service.DescribeAsync(job.SourcePath!, cancellationToken);
+                var cropped = await service.CropAsync(basis, crop, null, p => newJob.Progress = p, cancellationToken);
+                if (job.Source == JobSource.Clipboard)
+                    await clipboard.PutResultAsync(cropped.OutputPath);
+                return cropped;
+            }, $"Cropping to {crop}");
+        }
+
+        /// <summary>Renames a result's file (from the card's title). Returns false, with the reason on the card, if it can't.</summary>
+        public async Task<bool> RenameAsync(OptimisationJob job, string name)
+        {
+            if (job.CurrentPath is not { } path || !File.Exists(path) || !job.IsFinished)
+                return false;
+            try
+            {
+                var renamed = await Task.Run(() => service.RenameFile(path, name));
+                if (string.Equals(renamed, path, StringComparison.Ordinal))
+                    return true;
+                job.MarkMoved(path, renamed);
+                // The clipboard still points at the old name.
+                if (job.Source == JobSource.Clipboard)
+                    await clipboard.PutResultAsync(renamed);
+                Log.Info($"Renamed {Path.GetFileName(path)} to {Path.GetFileName(renamed)}");
+                return true;
+            }
+            catch (Exception e) when (e is ArgumentException or IOException or UnauthorizedAccessException)
+            {
+                job.Status = "Couldn't rename: " + e.Message;
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// "Edit with…" (project.md §16.4): opens the result in the editor set for its kind in Settings → Results, or
+        /// asks with Windows' "Open with" dialog.
+        /// </summary>
+        public static void EditWith(OptimisationJob job, IntPtr owner, AppSettings settings)
+        {
+            if (job.CurrentPath is not { } path || !File.Exists(path))
+                return;
+            try
+            {
+                if (settings.ResultCards.EditorFor(KindOf(job)) is { } editor)
+                    Process.Start(new ProcessStartInfo(editor, $"\"{path}\"") { UseShellExecute = true })?.Dispose();
+                else
+                    WindowInterop.ShowOpenWith(owner, path);
+            }
+            catch (Exception e) when (e is System.ComponentModel.Win32Exception or System.Runtime.InteropServices.COMException)
+            {
+                Log.Error($"Edit with failed for {Path.GetFileName(path)}", e);
+                job.Status = "Couldn't open the editor: " + e.Message;
+            }
         }
 
         /// <summary>The next speed step: +0.25× below 2×, then +1×, up to 10× (project.md §9.4).</summary>

@@ -105,6 +105,14 @@
                               IsChecked="{Binding Clipboard.IgnoreRemoteClipboard}" />
                     <CheckBox Content="Keep each copied result as its own card instead of replacing the last one"
                               IsChecked="{Binding Clipboard.AppendResults}" />
+                    <CheckBox x:Name="CollectResultsBox" Content="Collect copied results, so they all paste at once as files"
+                              IsChecked="{Binding Clipboard.CollectResults}" />
+                    <StackPanel Orientation="Horizontal" Margin="24,0,0,0" IsEnabled="{Binding IsChecked, ElementName=CollectResultsBox}">
+                        <TextBlock Style="{StaticResource Label}" Text="Start a new collection after (seconds without a copy, 0 = never)" />
+                        <TextBox Style="{StaticResource Number}" Width="60" Text="{Binding Clipboard.CollectResultsIdleSeconds, UpdateSourceTrigger=LostFocus}" />
+                    </StackPanel>
+                    <TextBlock Style="{StaticResource Hint}" Margin="24,0,0,6"
+                               Text="Each optimised image joins the collection. Pasting into chat apps, emails and Explorer attaches all of them; apps that only take pixels get the newest. Clear results (tray menu or the Escape hotkey) starts again." />
 
                     <TextBlock Style="{StaticResource Section}" Text="Apps to ignore" />
                     <TextBlock Style="{StaticResource Hint}" Text="Copies made in these apps are never touched (password managers mark their copies anyway)." />
@@ -250,7 +258,12 @@
                                 Value="{Binding Compression.AudioFactor}" ValueChanged="AudioFactor_Changed" />
                     </DockPanel>
                     <TextBlock Style="{StaticResource Hint}"
-                               Text="WAV becomes MP3, FLAC and AIFF become AAC (.m4a). The bitrate is never raised above the original's, and cover art is kept." />
+                               Text="WAV becomes MP3, FLAC and AIFF become AAC (.m4a). The bitrate is never raised above the original's." />
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Style="{StaticResource Label}" Text="Cover art" />
+                        <ComboBox x:Name="CoverArtBox" Width="260" SelectedValuePath="Value" DisplayMemberPath="Label"
+                                  SelectedValue="{Binding Compression.AudioCoverArt}" />
+                    </StackPanel>
 
                     <TextBlock Style="{StaticResource Section}" Text="Metadata" />
                     <CheckBox Content="Remove metadata (camera details, location, editing history)" IsChecked="{Binding Files.StripMetadata}" />
@@ -315,6 +328,13 @@
                                 Value="{Binding Ui.DropZonePosition}" SmallChange="1" LargeChange="10" />
                     </Grid>
                     <Button Content="Move it on screen…" HorizontalAlignment="Left" Padding="12,4" Margin="0,6,0,0" Click="PositionDropZone_Click" />
+                    <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                        <TextBlock Style="{StaticResource Label}" Text="Show it under the cursor by tapping" />
+                        <ComboBox x:Name="DropTapKeyBox" Width="120" SelectedValuePath="Value" DisplayMemberPath="Label"
+                                  SelectedValue="{Binding Ui.DropZoneTapKey}" />
+                    </StackPanel>
+                    <TextBlock Style="{StaticResource Hint}"
+                               Text="While dragging, press and release the key on its own to bring the drop zone to the cursor; tap again to hide it. Holding the key is unaffected. Works even with the edge tab turned off." />
                     <TextBlock Style="{StaticResource Hint}"
                                Text="It stays hidden until you drag something, then peeks out of the edge. Drop image files, videos, PDFs, audio, folders, images from a browser or Outlook, or links. While holding files over it, scroll to pick Normal, Aggressive, Maximum, Half size or Gentle. Hold Alt to keep the original (a copy is saved next to it)." />
 
@@ -337,6 +357,9 @@
 
                     <TextBlock Style="{StaticResource Section}" Text="Privacy" />
                     <CheckBox Content="Let result cards appear in screenshots and screen recordings" IsChecked="{Binding Ui.AllowInScreenshots}" />
+
+                    <!-- Format bar, compact list, Edit with -->
+                    <local:ResultCardsPanel x:Name="ResultCardsSection" />
                 </StackPanel>
             </ScrollViewer>
         </TabItem>

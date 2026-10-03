@@ -8,6 +8,7 @@ riderModule.iml
 *.user
 TestResults/
 /tools/
+/tools-arm64/
 /artifacts/
 
 # Working notes stay local
@@ -16,3 +17,6 @@ TestResults/
 
 # Generated icon preview (scripts/make-icon.ps1)
 /WClop/Assets/WClop-preview.png
+
+# Claude Code worktrees and session files
+/.claude/

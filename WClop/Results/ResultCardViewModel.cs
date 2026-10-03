@@ -4,6 +4,9 @@ using System.Runtime.CompilerServices;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
+using WClop.Core.Audio;
+using WClop.Core.Cropping;
+using WClop.Core.Images;
 using WClop.Core.Media;
 using WClop.Core.Optimisation;
 using WClop.Core.Processes;
@@ -11,7 +14,7 @@ using WClop.Core.Video;
 
 namespace WClop.Results
 {
-    /// <summary>One floating result card (project.md §16.1).</summary>
+    /// <summary>One floating result card (project.md §16.1), or one row of the compact list (§16.2).</summary>
     internal sealed class ResultCardViewModel : INotifyPropertyChanged
     {
         private const int ThumbnailPixels = 144;
@@ -22,6 +25,16 @@ namespace WClop.Results
         private string? _dimensions;
         private bool _isHovered;
         private string? _loadedThumbnailPath;
+        private string? _codec;
+        private ImageSize? _pixelSize;
+        private IReadOnlyList<FormatChoice> _formatChoices = [];
+        private bool _isSelected;
+        private bool _isRenaming;
+        private string _renameText = "";
+        private bool _isCropOpen;
+        private bool _cropSmart;
+        private string _cropWidthText = "";
+        private string _cropHeightText = "";
 
         public ResultCardViewModel(OptimisationJob job, Dispatcher dispatcher, TimeSpan autoHideAfter, Action<ResultCardViewModel> dismiss)
         {
@@ -31,6 +44,7 @@ namespace WClop.Results
             _autoHide.Stop();
             job.PropertyChanged += OnJobChanged;
             LoadThumbnail(job.CurrentPath);
+            UpdateFormatChoices();
         }
 
         public event PropertyChangedEventHandler? PropertyChanged;
@@ -66,6 +80,100 @@ namespace WClop.Results
         public Func<OptimisationJob, IReadOnlyList<string>>? PipelinesFor { get; init; }
 
         public bool CanRunPipeline => HasPipelines && ResultActions.CanRunPipeline(Job) && PipelinesFor?.Invoke(Job).Count > 0;
+
+        // Clop 3 card actions
+
+        /// <summary>Set when the card is made (Settings → Results): the format bar instead of the Convert button.</summary>
+        public bool ShowFormatBar { get; init; } = true;
+
+        /// <summary>Without the format bar, conversions stay one button (and the right-click menu) away.</summary>
+        public bool ShowConvertButton => !ShowFormatBar;
+
+        public IReadOnlyList<FormatChoice> FormatChoices => _formatChoices;
+
+        public bool HasFormatBar => ShowFormatBar && _formatChoices.Count > 0;
+
+        public MediaKind Kind => ResultActions.KindOf(Job);
+
+        public bool CanDownscale => Kind is MediaKind.Image or MediaKind.Video && ResultActions.CanAdjust(Job);
+
+        /// <summary>The compression slider: a factor for images, video and audio, the DPI for PDFs.</summary>
+        public bool CanCompress => Kind == MediaKind.Pdf
+            ? Job.IsFinished && Job.Result is { IsConversion: false, BackupPath: var backup } && File.Exists(backup)
+            : ResultActions.CanAdjust(Job);
+
+        public bool CanCrop => ResultActions.CanCrop(Job);
+        public bool CanShare => Job.IsFinished && CanShowFile;
+        public bool CanEdit => Job.IsFinished && CanShowFile;
+        public bool CanRename => Job.IsFinished && CanShowFile;
+
+        /// <summary>The second line of a compact-list row.</summary>
+        public string CompactDetail => SizeText ?? Status;
+
+        /// <summary>The codec ffprobe reports for a video or audio file (e.g. "h264"), once known.</summary>
+        public string? Codec => _codec;
+
+        /// <summary>The file's pixel size, once read (images and videos).</summary>
+        public ImageSize? PixelSize => _pixelSize;
+
+        public bool IsSelected
+        {
+            get => _isSelected;
+            set => Set(ref _isSelected, value);
+        }
+
+        public bool IsRenaming
+        {
+            get => _isRenaming;
+            set
+            {
+                if (Set(ref _isRenaming, value))
+                    RestartAutoHide();
+            }
+        }
+
+        public string RenameText
+        {
+            get => _renameText;
+            set => Set(ref _renameText, value);
+        }
+
+        public bool IsCropOpen
+        {
+            get => _isCropOpen;
+            set
+            {
+                if (!Set(ref _isCropOpen, value))
+                    return;
+                if (value && _pixelSize is { } size)
+                {
+                    CropWidthText = size.Width.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                    CropHeightText = size.Height.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                }
+
+                RestartAutoHide();
+            }
+        }
+
+        public static IReadOnlyList<string> CropPresets => CropSpec.AspectPresets;
+
+        public bool CropSmart
+        {
+            get => _cropSmart;
+            set => Set(ref _cropSmart, value);
+        }
+
+        public string CropWidthText
+        {
+            get => _cropWidthText;
+            set => Set(ref _cropWidthText, value);
+        }
+
+        public string CropHeightText
+        {
+            get => _cropHeightText;
+            set => Set(ref _cropHeightText, value);
+        }
 
         public string? SizeText => Job.Result is { } r && Job.State == JobState.Succeeded
             ? $"{FormatBytes(r.OldSize)} → {FormatBytes(r.NewSize)}  (−{r.SavedFraction:P0})"
@@ -105,7 +213,8 @@ namespace WClop.Results
         public void RestartAutoHide()
         {
             _autoHide.Stop();
-            if (AutoHideEnabled && Job.IsFinished && !IsHovered)
+            // Not while you're typing a name or choosing a crop either.
+            if (AutoHideEnabled && Job.IsFinished && !IsHovered && !IsRenaming && !IsCropOpen)
                 _autoHide.Start();
         }
 
@@ -118,6 +227,7 @@ namespace WClop.Results
         private void OnJobChanged(object? sender, PropertyChangedEventArgs e)
         {
             // Job events arrive on worker threads; WPF marshals scalar bindings, the timer needs the UI thread.
+            Notify(nameof(Title));
             Notify(nameof(Status));
             Notify(nameof(IsRunning));
             Notify(nameof(IsProgressIndeterminate));
@@ -127,11 +237,20 @@ namespace WClop.Results
             Notify(nameof(CanRestore));
             Notify(nameof(SizeText));
             Notify(nameof(HasSizeText));
+            Notify(nameof(CompactDetail));
             Notify(nameof(CanShowFile));
             Notify(nameof(CanConvert));
             Notify(nameof(CanFit));
             Notify(nameof(CanRunPipeline));
+            Notify(nameof(CanDownscale));
+            Notify(nameof(CanCompress));
+            Notify(nameof(CanCrop));
+            Notify(nameof(CanShare));
+            Notify(nameof(CanEdit));
+            Notify(nameof(CanRename));
 
+            if (e.PropertyName is nameof(OptimisationJob.State) or nameof(OptimisationJob.CurrentPath) or nameof(OptimisationJob.Result))
+                UpdateFormatChoices();
             if (e.PropertyName == nameof(OptimisationJob.CurrentPath))
                 LoadThumbnail(Job.CurrentPath);
             if (e.PropertyName == nameof(OptimisationJob.State))
@@ -142,6 +261,16 @@ namespace WClop.Results
                     LoadThumbnail(Job.CurrentPath, force: true);
                 _dispatcher.BeginInvoke(RestartAutoHide);
             }
+        }
+
+        private void UpdateFormatChoices()
+        {
+            var choices = ResultActions.FormatChoicesFor(Job, _codec);
+            if (choices.SequenceEqual(_formatChoices))
+                return;
+            _formatChoices = choices;
+            Notify(nameof(FormatChoices));
+            Notify(nameof(HasFormatBar));
         }
 
         private void LoadThumbnail(string? path, bool force = false)
@@ -157,9 +286,10 @@ namespace WClop.Results
                     switch (FileFormats.FromExtension(path).Kind())
                     {
                         case MediaKind.Video:
-                            var (videoFrame, width, height) = DecodeVideoThumbnail(path);
+                            var (videoFrame, info) = DecodeVideoThumbnail(path);
                             Thumbnail = videoFrame;
-                            Dimensions = $"{width} × {height}";
+                            SetMedia(info?.VideoCodec, info is null ? null : new ImageSize(info.Width, info.Height));
+                            Dimensions = $"{info?.Width ?? 0} × {info?.Height ?? 0}" + CodecSuffix();
                             break;
 
                         case MediaKind.Pdf:
@@ -169,12 +299,23 @@ namespace WClop.Results
 
                         case MediaKind.Audio:
                             // No picture; show what matters for audio instead.
-                            Dimensions = Job.Result?.BitrateKbps is { } kbps ? $"{kbps} kbps" : null;
+                            var audio = ToolLocator.CreateDefault().Find(Tool.Ffprobe) is { } ffprobe
+                                ? AudioInfo.ProbeAsync(ffprobe, path).GetAwaiter().GetResult()
+                                : null;
+                            SetMedia(audio?.Codec, null);
+                            Dimensions = (Job.Result?.BitrateKbps ?? audio?.BitrateKbps, Core.Optimisation.FormatChoices.CodecLabel(_codec)) switch
+                            {
+                                ({ } kbps, { } codec) => $"{kbps} kbps · {codec}",
+                                ({ } kbps, null) => $"{kbps} kbps",
+                                (null, { } codec) => codec,
+                                _ => null,
+                            };
                             break;
 
                         default:
                             var (image, imageWidth, imageHeight) = DecodeThumbnail(path);
                             Thumbnail = image;
+                            SetMedia(null, new ImageSize(imageWidth, imageHeight));
                             Dimensions = $"{imageWidth} × {imageHeight}";
                             break;
                     }
@@ -187,6 +328,20 @@ namespace WClop.Results
                 }
             });
         }
+
+        /// <summary>The codec decides the format bar for video and audio (an HEVC MP4 isn't offered MP4 · HEVC).</summary>
+        private void SetMedia(string? codec, ImageSize? size)
+        {
+            _pixelSize = size;
+            Notify(nameof(PixelSize));
+            if (codec == _codec)
+                return;
+            _codec = codec;
+            Notify(nameof(Codec));
+            UpdateFormatChoices();
+        }
+
+        private string CodecSuffix() => Core.Optimisation.FormatChoices.CodecLabel(_codec) is { } label ? " · " + label : "";
 
         /// <summary>"300 → 150 DPI" (or just the output DPI) for a PDF result.</summary>
         private string? PdfDetail() => Job.Result switch
@@ -219,8 +374,8 @@ namespace WClop.Results
             }
         }
 
-        /// <summary>A frame from the video, via ffmpeg; the reported size is the video's (the frame is scaled down).</summary>
-        private static (ImageSource Thumbnail, int Width, int Height) DecodeVideoThumbnail(string path)
+        /// <summary>A frame from the video, via ffmpeg, and what ffprobe says about it (size, codec).</summary>
+        private static (ImageSource Thumbnail, VideoInfo? Info) DecodeVideoThumbnail(string path)
         {
             var tools = ToolLocator.CreateDefault();
             var ffmpeg = tools.Find(Tool.Ffmpeg) ?? throw new IOException("ffmpeg not found");
@@ -232,7 +387,7 @@ namespace WClop.Results
                 var info = tools.Find(Tool.Ffprobe) is { } ffprobe
                     ? VideoInfo.ProbeAsync(ffprobe, path).GetAwaiter().GetResult()
                     : null;
-                return (thumbnail, info?.Width ?? 0, info?.Height ?? 0);
+                return (thumbnail, info);
             }
             finally
             {

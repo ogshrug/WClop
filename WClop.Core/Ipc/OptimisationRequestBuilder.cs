@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text.RegularExpressions;
+using WClop.Core.Cropping;
 using WClop.Core.DropZone;
 using WClop.Core.Media;
 using WClop.Core.Optimisation;
@@ -36,6 +37,13 @@ public sealed class OptimisationRequestBuilder
                 ConvertTo = format;
         }
 
+        if (command.CropSize is not null || command.CropAspect is not null)
+        {
+            Crop = CropSpec.Parse(command.CropSize, command.CropAspect, command.SmartCrop, out var cropError);
+            if (cropError is not null)
+                Error = cropError;
+        }
+
         if (command.Factor is < 1 or > 100)
             Error = "The factor must be between 1 and 100";
         if (command.Scale is <= 0 or > 1)
@@ -46,13 +54,16 @@ public sealed class OptimisationRequestBuilder
 
     public DropPreset Preset { get; } = DropPresets.All[0];
     public FileFormat? ConvertTo { get; }
+
+    /// <summary>Crop instead of optimising (see <see cref="FileOptimisationService.CropAsync"/>).</summary>
+    public CropSpec? Crop { get; }
     public string? Error { get; }
 
     /// <summary>Whether anything beyond "optimise with the settings" was asked for.</summary>
     public bool HasOptions => _command.Preset is not null || _command.Factor is not null || _command.Scale is not null
                               || _command.TargetBytes is not null || _command.ConvertTo is not null
                               || _command.KeepOriginals || _command.Output is not null || _command.AllowLarger
-                              || _command.Pipeline is not null;
+                              || _command.Pipeline is not null || Crop is not null;
 
     public FileOptimisationRequest Build()
     {

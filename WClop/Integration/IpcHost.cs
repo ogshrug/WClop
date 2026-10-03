@@ -159,10 +159,16 @@ namespace WClop.Integration
                 }
             }
 
+            // AI assistants run scripts only if the user allowed it, whatever the MCP server itself checked.
+            var fromAssistant = command.Source == IpcSource.Mcp;
+            if (fromAssistant && pipeline is not null && AssistantPolicy.CheckRun(pipeline.Compiled, _settings.Pipelines) is { } refused)
+                return Reply(new OptimiseReply([], refused));
+
             var files = DropInputs.ExpandMediaPaths(paths, DropInputs.OptimisableMedia);
             var jobs = pipeline is null
-                ? StartJobs(files, builder.Build(), builder.ConvertTo)
-                : StartPipelineJobs(files, pipeline, command.SkipOptimisation ?? pipeline.SkipOptimisation);
+                ? StartJobs(files, builder.Build(), builder.ConvertTo, builder.Crop)
+                : StartPipelineJobs(files, pipeline, command.SkipOptimisation ?? pipeline.SkipOptimisation,
+                    allowScripts: !fromAssistant || _settings.Pipelines.AllowScriptsFromAssistants);
             if (!command.Wait)
                 return Reply(new OptimiseReply([], $"Started {jobs.Count} job(s)"));
 
@@ -180,18 +186,24 @@ namespace WClop.Integration
 
         private sealed record StartedJob(string Path, OptimisationJob Job, Task Done);
 
-        private List<StartedJob> StartJobs(IReadOnlyList<string> files, FileOptimisationRequest request, FileFormat? convertTo)
+        private List<StartedJob> StartJobs(
+            IReadOnlyList<string> files, FileOptimisationRequest request, FileFormat? convertTo, Core.Cropping.CropSpec? crop = null)
         {
             var started = new List<StartedJob>();
             foreach (var file in files)
             {
                 var job = _manager.Start(file, JobSource.Cli, Path.GetFileName(file), file, async (j, cancellationToken) =>
                 {
+                    // wclop crop: from the file as it is, placed like an optimisation (in place unless --keep / --output).
+                    if (crop is not null)
+                        return await _service.CropAsync(await _service.DescribeAsync(file, cancellationToken), crop,
+                            request.Behaviour ?? OutputBehaviour.InPlace, p => j.Progress = p, cancellationToken);
                     if (convertTo is not { } target)
                         return await _service.OptimiseAsync(file, request, p => j.Progress = p, cancellationToken);
                     var described = await _service.DescribeAsync(file, cancellationToken);
                     return await _service.ConvertAsync(described, target, p => j.Progress = p, cancellationToken);
-                }, convertTo is { } t ? $"Converting to {t.ToString().ToUpperInvariant()}" : "Optimising");
+                }, crop is not null ? $"Cropping to {crop}"
+                    : convertTo is { } t ? $"Converting to {t.ToString().ToUpperInvariant()}" : "Optimising");
 
                 started.Add(Track(file, job));
             }
@@ -199,7 +211,7 @@ namespace WClop.Integration
             return started;
         }
 
-        private List<StartedJob> StartPipelineJobs(IReadOnlyList<string> files, ResolvedPipeline pipeline, bool skipOptimisation)
+        private List<StartedJob> StartPipelineJobs(IReadOnlyList<string> files, ResolvedPipeline pipeline, bool skipOptimisation, bool allowScripts)
         {
             var started = new List<StartedJob>();
             foreach (var file in files)
@@ -210,6 +222,7 @@ namespace WClop.Integration
                         new PipelineContext
                         {
                             Origin = PipelineOrigin.Cli,
+                            AllowScripts = allowScripts,
                             OnStatus = status => j.Status = status,
                             OnProgress = progress => j.Progress = progress,
                             CopyToClipboard = _clipboard.PutForPipelineAsync,
@@ -240,6 +253,11 @@ namespace WClop.Integration
             try
             {
                 var command = JsonSerializer.Deserialize<SettingsCommand>(json, IpcNames.Json) ?? throw new JsonException("Empty request");
+                // AI assistants can't allow themselves scripts, save pipelines that run them, or attach pipelines.
+                if (command is { Source: IpcSource.Mcp, Key: { } key, Value: { } value } && command.Action.ToLowerInvariant() is "set" or "setjson"
+                    && AssistantPolicy.CheckSettingsWrite(_settings, command.Action, key, value) is { } refused)
+                    return Task.FromResult(Reply(new SettingsReply(false, Error: refused)));
+
                 switch (command.Action.ToLowerInvariant())
                 {
                     case "get":

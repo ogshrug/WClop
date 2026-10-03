@@ -218,8 +218,8 @@ public sealed partial class FileOptimisationService
         var info = await AudioInfo.ProbeAsync(Tools.Require(Tool.Ffprobe), original, cancellationToken).ConfigureAwait(false)
                    ?? throw new UnsupportedFormatException("Not an audio file ffmpeg can read");
         var kbps = TargetSizeMath.AudioKbps(target, info.Duration.TotalSeconds, info.IsLossless ? null : info.BitrateKbps);
-        var output = await _audio.OptimiseAsync(original, _settings.Compression.AudioFactor, allowLarger: true, onProgress, cancellationToken, kbps)
-            .ConfigureAwait(false);
+        var output = await _audio.OptimiseAsync(original, _settings.Compression.AudioFactor, allowLarger: true, onProgress, cancellationToken, kbps,
+            coverArt: _settings.Compression.AudioCoverArt).ConfigureAwait(false);
         return Keep(attempts, new Produced(output.Path, output.Format, false, variant) { BitrateKbps = output.BitrateKbps });
     }
 

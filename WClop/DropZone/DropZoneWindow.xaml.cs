@@ -19,6 +19,7 @@ namespace WClop.DropZone
     /// labelled target. Windows has no global drag pasteboard (§26.1), so drags are noticed with a low-level mouse
     /// hook and told apart from text selection or window moves by the drag-and-drop cursor; the content itself is
     /// only inspected once it's over the tab. The tab can be dragged to any edge in positioning mode.
+    /// Tapping a modifier (Alt by default) during a drag shows the zone under the cursor instead; tapping again hides it.
     /// </summary>
     public partial class DropZoneWindow : Window
     {
@@ -35,6 +36,8 @@ namespace WClop.DropZone
         private const double PeekDepth = 26;
         private const double VerticalOpenDepth = 220, HorizontalOpenDepth = 96;
         private const double CornerRadius = 14;
+        // The zone shown under the cursor by a modifier tap is laid out like an open tab on a vertical edge.
+        private const double CursorZoneWidth = VerticalOpenDepth, CursorZoneHeight = VerticalLength;
 
         private const int DragThreshold = 12;    // px before a press counts as a drag
         private const int ReachAroundTab = 150;  // px: dragging this close to the tab's spot always reveals it
@@ -58,12 +61,18 @@ namespace WClop.DropZone
         private int _wheelRemainder;
         private bool _usable;
         private DragDropKeyStates _keys;
+        private readonly KeyboardHook _keyboard;
+        // Shown under the cursor by a modifier tap rather than on the edge.
+        private bool _atCursor;
+        // Tapped away for the rest of this drag, so the edge tab doesn't pop straight back.
+        private bool _tapHidden;
 
-        internal DropZoneWindow(AppSettings settings, DropHandler handler, MouseHook hook)
+        internal DropZoneWindow(AppSettings settings, DropHandler handler, MouseHook hook, KeyboardHook keyboard)
         {
             _settings = settings;
             _handler = handler;
             _hook = hook;
+            _keyboard = keyboard;
             InitializeComponent();
 
             _hideTimer = new DispatcherTimer(TimeSpan.FromMilliseconds(350), DispatcherPriority.Normal, (_, _) => Retract(), Dispatcher);
@@ -94,10 +103,13 @@ namespace WClop.DropZone
                 _pressedAt = (x, y);
                 _dragging = false;
                 _dragCursorSamples = 0;
+                _tapHidden = false;
             });
             hook.DragMoved += (x, y) => Dispatcher.BeginInvoke(() => OnDragMoved(x, y));
+            keyboard.Tapped += () => Dispatcher.BeginInvoke(OnModifierTapped);
             hook.LeftUp += (_, _) => Dispatcher.BeginInvoke(() =>
             {
+                _keyboard.StopWatching();
                 _pressedAt = null;
                 _dragging = false;
                 if (_state is ZoneState.Peeking or ZoneState.Open)
@@ -115,6 +127,7 @@ namespace WClop.DropZone
         {
             _state = ZoneState.Positioning;
             _hideTimer.Stop();
+            _atCursor = false;
             Layout(CurrentScreen());
             SetLook(IdleBrush, "Drag me to any edge", "Click to finish");
             PresetDots.Text = "";
@@ -130,11 +143,11 @@ namespace WClop.DropZone
             var hwnd = new WindowInteropHelper(this).Handle;
             if (hwnd != IntPtr.Zero)
                 WindowInterop.SetExcludedFromCapture(hwnd, !_settings.Ui.AllowInScreenshots);
-            if (_state != ZoneState.Hidden)
+            if (_state != ZoneState.Hidden && !_atCursor)
                 Layout(CurrentScreen());
         }
 
-        private bool IsVerticalEdge => DropZoneGeometry.IsVertical(_settings.Ui.DropZoneEdge);
+        private bool IsVerticalEdge => _atCursor || DropZoneGeometry.IsVertical(_settings.Ui.DropZoneEdge);
         private double Length => IsVerticalEdge ? VerticalLength : HorizontalLength;
         private double OpenDepth => IsVerticalEdge ? VerticalOpenDepth : HorizontalOpenDepth;
 
@@ -142,7 +155,7 @@ namespace WClop.DropZone
 
         private void OnDragMoved(int x, int y)
         {
-            if (!_settings.Ui.DropZoneEnabled || _state == ZoneState.Positioning || _pressedAt is not { } start)
+            if (_state == ZoneState.Positioning || _pressedAt is not { } start)
                 return;
 
             if (!_dragging)
@@ -150,19 +163,52 @@ namespace WClop.DropZone
                 if (Math.Abs(x - start.X) < DragThreshold && Math.Abs(y - start.Y) < DragThreshold)
                     return;
                 _dragging = true;
+                // Taps work even with the edge tab turned off: then the zone only appears when asked for.
+                _keyboard.Watch(_settings.Ui.DropZoneTapKey);
             }
 
-            if (_state != ZoneState.Hidden)
+            if (!_settings.Ui.DropZoneEnabled || _state != ZoneState.Hidden || _tapHidden)
                 return;
 
             // Two samples in a row, so a cursor that flickers between states doesn't count.
             _dragCursorSamples = DragCursor.LooksLikeDragAndDrop() ? _dragCursorSamples + 1 : 0;
             var screen = System.Windows.Forms.Screen.FromPoint(new System.Drawing.Point(x, y));
+            _atCursor = false;
             if (_dragCursorSamples >= 2 || IsNearTab(screen, x, y))
             {
                 Layout(screen);
                 Peek();
             }
+        }
+
+        /// <summary>
+        /// The tap modifier was pressed and released on its own during a drag (Clop 3.0): show the drop zone under the
+        /// cursor, or hide it if it's already there.
+        /// </summary>
+        private void OnModifierTapped()
+        {
+            if (_state == ZoneState.Positioning || !_dragging || _pressedAt is null)
+                return;
+
+            if (_atCursor && _state != ZoneState.Hidden)
+            {
+                _tapHidden = true;
+                Retract();
+                return;
+            }
+
+            // A text selection or a window being moved isn't something to drop.
+            if (_state == ZoneState.Hidden && !DragCursor.LooksLikeDragAndDrop())
+                return;
+
+            _tapHidden = false;
+            GetCursorPos(out var cursor);
+            var wasHidden = _state == ZoneState.Hidden;
+            _atCursor = true;
+            LayoutAtCursor(System.Windows.Forms.Screen.FromPoint(new System.Drawing.Point(cursor.X, cursor.Y)), cursor.X, cursor.Y);
+            if (!wasHidden)
+                SetDepth(0); // it was on the edge: grow afresh where the cursor is
+            Peek();
         }
 
         /// <summary>Whether a drag at (x, y) physical pixels is close to where the tab lives on that screen.</summary>
@@ -198,7 +244,8 @@ namespace WClop.DropZone
                 Show();
             }
 
-            AnimateDepth(PeekDepth, showOpenContent: false);
+            // Under the cursor the zone stays full size, ready to drop on; on the edge it only peeks out.
+            AnimateDepth(_atCursor ? OpenDepth : PeekDepth, showOpenContent: _atCursor);
         }
 
         private void Open()
@@ -274,6 +321,33 @@ namespace WClop.DropZone
             var along = IsVerticalEdge ? HeightProperty : WidthProperty;
             Tab.BeginAnimation(along, null);
             Tab.ClearValue(along);
+        }
+
+        /// <summary>
+        /// Places the window centred on the cursor (physical pixels), kept on screen. The box grows out from its
+        /// middle and has all its corners rounded, since it isn't attached to an edge.
+        /// </summary>
+        private void LayoutAtCursor(System.Windows.Forms.Screen screen, int x, int y)
+        {
+            var dpi = VisualTreeHelper.GetDpi(this);
+            var area = screen.WorkingArea;
+            var areaDip = new ScreenRect(
+                (int)(area.Left / dpi.DpiScaleX), (int)(area.Top / dpi.DpiScaleY),
+                (int)(area.Right / dpi.DpiScaleX), (int)(area.Bottom / dpi.DpiScaleY));
+            var rect = DropZoneGeometry.AtCursor(
+                (int)(x / dpi.DpiScaleX), (int)(y / dpi.DpiScaleY), (int)CursorZoneWidth, (int)CursorZoneHeight, areaDip);
+
+            Left = rect.Left;
+            Top = rect.Top;
+            Width = rect.Right - rect.Left;
+            Height = rect.Bottom - rect.Top;
+
+            Tab.HorizontalAlignment = HorizontalAlignment.Center;
+            Tab.VerticalAlignment = VerticalAlignment.Stretch;
+            Tab.CornerRadius = new CornerRadius(CornerRadius);
+            Tab.BorderThickness = new Thickness(1);
+            Tab.BeginAnimation(HeightProperty, null);
+            Tab.ClearValue(HeightProperty);
         }
 
         private DependencyProperty DepthProperty => IsVerticalEdge ? WidthProperty : HeightProperty;

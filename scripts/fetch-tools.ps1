@@ -7,16 +7,27 @@
     Existing tools are skipped unless -Force is passed.
     Licences: pngquant is GPLv3, gifsicle GPLv2, ffmpeg (gyan.dev essentials) GPLv3, Ghostscript AGPLv3,
     jpegoptim GPLv3, exiftool Perl Artistic/GPL.
+
+    -Arch arm64 fills <repo>/tools-arm64 for the Windows on Arm installer (scripts/package.ps1 -Arch arm64) instead.
+    Only ffmpeg/ffprobe have native arm64 Windows builds (BtbN's GPL build, GPLv3). Nobody publishes arm64 Windows
+    builds of pngquant, jpegoptim, gifsicle, ExifTool or Ghostscript, so those stay x64 and run under Windows 11's x64
+    emulation. Video is where the time goes, so ffmpeg is the one worth having native.
+
+    -Jpegli also fetches cjpegli.exe (libjxl's jpegli JPEG encoder, BSD-3-Clause). Nothing uses it yet. It is pinned to
+    libjxl v0.11.2, the last release that shipped it (jpegli moved to github.com/google/jpegli, which has no releases).
 #>
 [CmdletBinding()]
 param(
+    [ValidateSet('x64', 'arm64')]
+    [string] $Arch = 'x64',
+    [switch] $Jpegli,
     [switch] $Force
 )
 
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'  # Invoke-WebRequest is very slow with the progress bar on.
 
-$toolsDir = Join-Path (Split-Path $PSScriptRoot -Parent) 'tools'
+$toolsDir = Join-Path (Split-Path $PSScriptRoot -Parent) $(if ($Arch -eq 'x64') { 'tools' } else { "tools-$Arch" })
 
 # In CI, GITHUB_TOKEN lifts the GitHub API's anonymous rate limit (60 requests an hour per IP, shared by runners).
 $githubHeaders = if ($env:GITHUB_TOKEN) { @{ Authorization = "Bearer $env:GITHUB_TOKEN" } } else { @{} }
@@ -25,7 +36,7 @@ New-Item -ItemType Directory -Force $toolsDir | Out-Null
 $staging = Join-Path ([IO.Path]::GetTempPath()) ("wclop-tools-" + [Guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Force $staging | Out-Null
 
-function Get-ZipAndExtract([string] $name, [string] $url) {
+function Get-ZipAndExtract([string] $name, [string] $url, [string] $sha256) {
     $zip = Join-Path $staging "$name.zip"
     $dest = Join-Path $staging $name
     Write-Host "  downloading $url"
@@ -35,6 +46,7 @@ function Get-ZipAndExtract([string] $name, [string] $url) {
     if ($LASTEXITCODE -ne 0) { throw "Download failed ($LASTEXITCODE): $url" }
     $magic = [IO.File]::ReadAllBytes($zip)[0..1]
     if ($magic[0] -ne 0x50 -or $magic[1] -ne 0x4B) { throw "Not a zip file: $url" }
+    if ($sha256 -and (Get-FileHash $zip -Algorithm SHA256).Hash -ne $sha256) { throw "Checksum mismatch: $url" }
     Expand-Archive -Path $zip -DestinationPath $dest -Force
     return $dest
 }
@@ -90,8 +102,19 @@ try {
     }
 
     if (Test-Needed 'ffmpeg.exe', 'ffprobe.exe') {
-        Write-Host 'ffmpeg (large download)'
-        $dir = Get-ZipAndExtract 'ffmpeg' 'https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip'
+        Write-Host "ffmpeg $Arch (large download)"
+        if ($Arch -eq 'x64') {
+            $url = 'https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip'
+        } else {
+            # gyan.dev has no arm64 builds. BtbN's rolling "latest" release has static builds of each FFmpeg release
+            # branch (ffmpeg-n8.1-latest-winarm64-gpl-8.1.zip): take the newest branch rather than git master.
+            $release = Invoke-RestMethod 'https://api.github.com/repos/BtbN/FFmpeg-Builds/releases/tags/latest' -Headers $githubHeaders
+            $asset = $release.assets | Where-Object { $_.name -match '^ffmpeg-n\d+\.\d+-latest-winarm64-gpl-[\d.]+\.zip$' } |
+                Sort-Object { [version]($_.name -replace '^ffmpeg-n(\d+\.\d+)-.*$', '$1') } -Descending | Select-Object -First 1
+            if (-not $asset) { throw 'No winarm64 GPL release-branch build in BtbN/FFmpeg-Builds' }
+            $url = $asset.browser_download_url
+        }
+        $dir = Get-ZipAndExtract 'ffmpeg' $url
         Copy-Exe $dir 'ffmpeg.exe' 'ffmpeg.exe' | Out-Null
         Copy-Exe $dir 'ffprobe.exe' 'ffprobe.exe' | Out-Null
     }
@@ -122,6 +145,14 @@ try {
         foreach ($file in 'gswin64c.exe', 'gsdll64.dll') {
             Copy-Item (Join-Path "$staging\gs\bin" $file) (Join-Path $toolsDir $file) -Force
         }
+    }
+
+    if ($Jpegli -and (Test-Needed 'cjpegli.exe')) {
+        Write-Host 'cjpegli (libjxl v0.11.2)'
+        # A fixed old release, so its checksum is pinned too.
+        $dir = Get-ZipAndExtract 'jxl' 'https://github.com/libjxl/libjxl/releases/download/v0.11.2/jxl-x64-windows-static.zip' `
+            '97DC815BDD99BA243D8502050357342CF649251A5DF069F8C3DAEE6828CBE0CE'
+        Copy-Exe $dir 'cjpegli.exe' 'cjpegli.exe' | Out-Null
     }
 
     Write-Host "Tools are in $toolsDir"

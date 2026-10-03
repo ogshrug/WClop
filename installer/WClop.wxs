@@ -22,6 +22,15 @@
     <Property Id="ARPNOREPAIR" Value="1" />
     <Property Id="ARPCOMMENTS" Value="Optimises images, videos, PDFs and audio as you copy, drop and save them." />
 
+    <?if $(sys.BUILDARCH) = "arm64" ?>
+    <!-- package.ps1 -Arch arm64. Its image and PDF tools are x64 builds (no arm64 ones exist), and only Windows 11
+         runs x64 code on Arm; Windows 10 on Arm emulates 32-bit x86 only. (VersionNT stops at 603, so read the build.) -->
+    <Property Id="WINDOWSBUILD">
+      <RegistrySearch Id="WindowsBuild" Root="HKLM" Key="SOFTWARE\Microsoft\Windows NT\CurrentVersion" Name="CurrentBuildNumber" Type="raw" />
+    </Property>
+    <Launch Condition="Installed OR WINDOWSBUILD >= 22000" Message="WClop for Arm needs Windows 11." />
+    <?endif?>
+
     <Property Id="LAUNCHATLOGIN" Value="1" />
     <Property Id="EXPLORERMENU" Value="1" />
     <Property Id="LAUNCHAPP" Value="1" />
@@ -62,9 +71,103 @@
       </Component>
     </ComponentGroup>
 
+    <!--
+      "Open with → WClop (optimise)" for every format WClop optimises (per user, HKCU). WClop.exe gets the file as a bare
+      path and optimises it like the right-click menu. Listed under OpenWithProgids, so it never becomes the default app.
+    -->
+    <ComponentGroup Id="OpenWith" Directory="INSTALLFOLDER">
+      <Component Id="OpenWithApplication">
+        <RegistryKey Root="HKCU" Key="Software\Classes\Applications\WClop.exe">
+          <RegistryValue Name="FriendlyAppName" Type="string" Value="WClop (optimise)" />
+          <RegistryValue Key="DefaultIcon" Type="string" Value="&quot;[INSTALLFOLDER]WClop.exe&quot;,0" />
+          <RegistryValue Key="shell\open\command" Type="string" Value="&quot;[INSTALLFOLDER]WClop.exe&quot; &quot;%1&quot;" />
+          <!-- Only offered for these in "Choose another app". -->
+          <RegistryValue Key="SupportedTypes" Name=".png" Type="string" Value="" />
+          <RegistryValue Key="SupportedTypes" Name=".jpg" Type="string" Value="" />
+          <RegistryValue Key="SupportedTypes" Name=".jpeg" Type="string" Value="" />
+          <RegistryValue Key="SupportedTypes" Name=".jpe" Type="string" Value="" />
+          <RegistryValue Key="SupportedTypes" Name=".jfif" Type="string" Value="" />
+          <RegistryValue Key="SupportedTypes" Name=".gif" Type="string" Value="" />
+          <RegistryValue Key="SupportedTypes" Name=".tif" Type="string" Value="" />
+          <RegistryValue Key="SupportedTypes" Name=".tiff" Type="string" Value="" />
+          <RegistryValue Key="SupportedTypes" Name=".webp" Type="string" Value="" />
+          <RegistryValue Key="SupportedTypes" Name=".avif" Type="string" Value="" />
+          <RegistryValue Key="SupportedTypes" Name=".heic" Type="string" Value="" />
+          <RegistryValue Key="SupportedTypes" Name=".heif" Type="string" Value="" />
+          <RegistryValue Key="SupportedTypes" Name=".bmp" Type="string" Value="" />
+          <RegistryValue Key="SupportedTypes" Name=".mp4" Type="string" Value="" />
+          <RegistryValue Key="SupportedTypes" Name=".m4v" Type="string" Value="" />
+          <RegistryValue Key="SupportedTypes" Name=".mov" Type="string" Value="" />
+          <RegistryValue Key="SupportedTypes" Name=".webm" Type="string" Value="" />
+          <RegistryValue Key="SupportedTypes" Name=".mkv" Type="string" Value="" />
+          <RegistryValue Key="SupportedTypes" Name=".avi" Type="string" Value="" />
+          <RegistryValue Key="SupportedTypes" Name=".mpg" Type="string" Value="" />
+          <RegistryValue Key="SupportedTypes" Name=".mpeg" Type="string" Value="" />
+          <RegistryValue Key="SupportedTypes" Name=".m2v" Type="string" Value="" />
+          <RegistryValue Key="SupportedTypes" Name=".pdf" Type="string" Value="" />
+          <RegistryValue Key="SupportedTypes" Name=".mp3" Type="string" Value="" />
+          <RegistryValue Key="SupportedTypes" Name=".m4a" Type="string" Value="" />
+          <RegistryValue Key="SupportedTypes" Name=".aac" Type="string" Value="" />
+          <RegistryValue Key="SupportedTypes" Name=".wav" Type="string" Value="" />
+          <RegistryValue Key="SupportedTypes" Name=".flac" Type="string" Value="" />
+          <RegistryValue Key="SupportedTypes" Name=".ogg" Type="string" Value="" />
+          <RegistryValue Key="SupportedTypes" Name=".opus" Type="string" Value="" />
+          <RegistryValue Key="SupportedTypes" Name=".aif" Type="string" Value="" />
+          <RegistryValue Key="SupportedTypes" Name=".aiff" Type="string" Value="" />
+        </RegistryKey>
+        <RegistryKey Root="HKCU" Key="Software\Classes\WClop.Optimise">
+          <RegistryValue Type="string" Value="Optimise with WClop" />
+          <RegistryValue Name="FriendlyTypeName" Type="string" Value="Optimise with WClop" />
+          <RegistryValue Key="DefaultIcon" Type="string" Value="&quot;[INSTALLFOLDER]WClop.exe&quot;,0" />
+          <RegistryValue Key="shell\open" Name="FriendlyAppName" Type="string" Value="WClop (optimise)" />
+          <RegistryValue Key="shell\open\command" Type="string" Value="&quot;[INSTALLFOLDER]WClop.exe&quot; &quot;%1&quot;" />
+        </RegistryKey>
+        <RegistryValue Root="HKCU" Key="Software\WClop" Name="OpenWith" Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+      <Component Id="OpenWithTypes">
+        <!-- The same extensions as the right-click menu (DropInputs.OptimisableMedia). -->
+        <RegistryKey Root="HKCU" Key="Software\Classes">
+          <RegistryValue Key=".png\OpenWithProgids" Name="WClop.Optimise" Type="string" Value="" />
+          <RegistryValue Key=".jpg\OpenWithProgids" Name="WClop.Optimise" Type="string" Value="" />
+          <RegistryValue Key=".jpeg\OpenWithProgids" Name="WClop.Optimise" Type="string" Value="" />
+          <RegistryValue Key=".jpe\OpenWithProgids" Name="WClop.Optimise" Type="string" Value="" />
+          <RegistryValue Key=".jfif\OpenWithProgids" Name="WClop.Optimise" Type="string" Value="" />
+          <RegistryValue Key=".gif\OpenWithProgids" Name="WClop.Optimise" Type="string" Value="" />
+          <RegistryValue Key=".tif\OpenWithProgids" Name="WClop.Optimise" Type="string" Value="" />
+          <RegistryValue Key=".tiff\OpenWithProgids" Name="WClop.Optimise" Type="string" Value="" />
+          <RegistryValue Key=".webp\OpenWithProgids" Name="WClop.Optimise" Type="string" Value="" />
+          <RegistryValue Key=".avif\OpenWithProgids" Name="WClop.Optimise" Type="string" Value="" />
+          <RegistryValue Key=".heic\OpenWithProgids" Name="WClop.Optimise" Type="string" Value="" />
+          <RegistryValue Key=".heif\OpenWithProgids" Name="WClop.Optimise" Type="string" Value="" />
+          <RegistryValue Key=".bmp\OpenWithProgids" Name="WClop.Optimise" Type="string" Value="" />
+          <RegistryValue Key=".mp4\OpenWithProgids" Name="WClop.Optimise" Type="string" Value="" />
+          <RegistryValue Key=".m4v\OpenWithProgids" Name="WClop.Optimise" Type="string" Value="" />
+          <RegistryValue Key=".mov\OpenWithProgids" Name="WClop.Optimise" Type="string" Value="" />
+          <RegistryValue Key=".webm\OpenWithProgids" Name="WClop.Optimise" Type="string" Value="" />
+          <RegistryValue Key=".mkv\OpenWithProgids" Name="WClop.Optimise" Type="string" Value="" />
+          <RegistryValue Key=".avi\OpenWithProgids" Name="WClop.Optimise" Type="string" Value="" />
+          <RegistryValue Key=".mpg\OpenWithProgids" Name="WClop.Optimise" Type="string" Value="" />
+          <RegistryValue Key=".mpeg\OpenWithProgids" Name="WClop.Optimise" Type="string" Value="" />
+          <RegistryValue Key=".m2v\OpenWithProgids" Name="WClop.Optimise" Type="string" Value="" />
+          <RegistryValue Key=".pdf\OpenWithProgids" Name="WClop.Optimise" Type="string" Value="" />
+          <RegistryValue Key=".mp3\OpenWithProgids" Name="WClop.Optimise" Type="string" Value="" />
+          <RegistryValue Key=".m4a\OpenWithProgids" Name="WClop.Optimise" Type="string" Value="" />
+          <RegistryValue Key=".aac\OpenWithProgids" Name="WClop.Optimise" Type="string" Value="" />
+          <RegistryValue Key=".wav\OpenWithProgids" Name="WClop.Optimise" Type="string" Value="" />
+          <RegistryValue Key=".flac\OpenWithProgids" Name="WClop.Optimise" Type="string" Value="" />
+          <RegistryValue Key=".ogg\OpenWithProgids" Name="WClop.Optimise" Type="string" Value="" />
+          <RegistryValue Key=".opus\OpenWithProgids" Name="WClop.Optimise" Type="string" Value="" />
+          <RegistryValue Key=".aif\OpenWithProgids" Name="WClop.Optimise" Type="string" Value="" />
+          <RegistryValue Key=".aiff\OpenWithProgids" Name="WClop.Optimise" Type="string" Value="" />
+        </RegistryKey>
+        <RegistryValue Root="HKCU" Key="Software\WClop" Name="OpenWithTypes" Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+    </ComponentGroup>
+
     <Feature Id="Main" Title="WClop">
       <ComponentGroupRef Id="AppFiles" />
       <ComponentGroupRef Id="UserEntries" />
+      <ComponentGroupRef Id="OpenWith" />
     </Feature>
 
     <!-- A running WClop holds its files; ask it to quit first (upgrade, uninstall). Nothing to do on a fresh install. -->

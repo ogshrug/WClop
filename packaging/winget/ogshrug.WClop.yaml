@@ -1,0 +1,8 @@
+# Template: scripts/winget-manifest.ps1 fills in the {{...}} values. See docs/RELEASING.md.
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.version.1.12.0.schema.json
+
+PackageIdentifier: ogshrug.WClop
+PackageVersion: {{Version}}
+DefaultLocale: en-US
+ManifestType: version
+ManifestVersion: 1.12.0

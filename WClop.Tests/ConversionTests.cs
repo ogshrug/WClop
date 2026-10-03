@@ -12,7 +12,7 @@ using WClop.Core.Video;
 
 namespace WClop.Tests;
 
-internal static class Phase7Images
+internal static class ConversionImages
 {
     /// <summary>Flat blocks of a few colours, like a logo or UI graphic.</summary>
     public static BitmapSource Flat(int width, int height, int colors = 4)
@@ -62,7 +62,7 @@ public class ImageAnalysisTests
     public void Transparency()
     {
         using var dir = new TempDir();
-        var alpha = TestImages.SavePng(Phase7Images.WithAlpha(), dir.File("a.png"));
+        var alpha = TestImages.SavePng(ConversionImages.WithAlpha(), dir.File("a.png"));
         var opaque = TestImages.SavePng(TestImages.Photo(32, 32), dir.File("b.png"));
 
         Assert.True(ImageAnalysis.HasTransparency(ImageAnalysis.Load(alpha)));
@@ -73,7 +73,7 @@ public class ImageAnalysisTests
     public void EntropySeparatesGraphicsFromPhotos()
     {
         using var dir = new TempDir();
-        var flat = ImageAnalysis.Entropy(ImageAnalysis.Load(TestImages.SavePng(Phase7Images.Flat(200, 200), dir.File("flat.png"))));
+        var flat = ImageAnalysis.Entropy(ImageAnalysis.Load(TestImages.SavePng(ConversionImages.Flat(200, 200), dir.File("flat.png"))));
         var photo = ImageAnalysis.Entropy(ImageAnalysis.Load(TestImages.SavePng(TestImages.Photo(200, 200), dir.File("photo.png"))));
 
         Assert.True(flat < 5, $"flat {flat}");
@@ -84,7 +84,7 @@ public class ImageAnalysisTests
     public void CountsColorsAndStopsEarly()
     {
         using var dir = new TempDir();
-        var flat = ImageAnalysis.Load(TestImages.SavePng(Phase7Images.Flat(200, 200, colors: 4), dir.File("flat.png")));
+        var flat = ImageAnalysis.Load(TestImages.SavePng(ConversionImages.Flat(200, 200, colors: 4), dir.File("flat.png")));
         var photo = ImageAnalysis.Load(TestImages.SavePng(TestImages.Photo(200, 200), dir.File("photo.png")));
 
         Assert.Equal(4, ImageAnalysis.CountColors(flat));
@@ -146,7 +146,7 @@ public sealed class ConversionTests : IDisposable
     [ToolsFact]
     public async Task JpegFlattensTransparencyOntoWhite()
     {
-        var input = TestImages.SavePng(Phase7Images.WithAlpha(), _dir.File("alpha.png"));
+        var input = TestImages.SavePng(ConversionImages.WithAlpha(), _dir.File("alpha.png"));
 
         var output = await _converter.ConvertAsync(input, FileFormat.Jpeg, 30, CancellationToken.None);
 
@@ -185,7 +185,7 @@ public sealed class ConversionTests : IDisposable
     [ToolsFact]
     public async Task BmpIsConvertedToJpegNextToIt()
     {
-        var input = Phase7Images.Save(new BmpBitmapEncoder(), TestImages.Photo(300, 200), _dir.File("scan.bmp"));
+        var input = ConversionImages.Save(new BmpBitmapEncoder(), TestImages.Photo(300, 200), _dir.File("scan.bmp"));
 
         var result = await _service.OptimiseImageAsync(input, new FileOptimisationRequest());
 
@@ -212,7 +212,7 @@ public sealed class ConversionTests : IDisposable
     public async Task ConversionCanBeTurnedOff()
     {
         _settings.Compression.ConvertToJpeg = [];
-        var input = Phase7Images.Save(new BmpBitmapEncoder(), TestImages.Photo(64, 64), _dir.File("keep.bmp"));
+        var input = ConversionImages.Save(new BmpBitmapEncoder(), TestImages.Photo(64, 64), _dir.File("keep.bmp"));
 
         await Assert.ThrowsAsync<UnsupportedFormatException>(() => _service.OptimiseImageAsync(input, new FileOptimisationRequest()));
     }
@@ -250,7 +250,7 @@ public sealed class ConversionTests : IDisposable
     public async Task AdaptiveTurnsAFlatJpegIntoPng()
     {
         _settings.Compression.AdaptiveImageFormat = true;
-        var input = TestImages.SaveJpeg(Phase7Images.Flat(2400, 1800, colors: 3), _dir.File("ui.jpg"), quality: 100);
+        var input = TestImages.SaveJpeg(ConversionImages.Flat(2400, 1800, colors: 3), _dir.File("ui.jpg"), quality: 100);
         var entropy = ImageAnalysis.Entropy(ImageAnalysis.Load(input));
 
         var result = await _service.OptimiseImageAsync(input, InPlace);
@@ -261,7 +261,7 @@ public sealed class ConversionTests : IDisposable
     [ToolsFact]
     public async Task DownscalingAFlatPngNeverGrowsIt()
     {
-        var input = TestImages.SavePng(Phase7Images.Flat(800, 800, colors: 4), _dir.File("logo.png"));
+        var input = TestImages.SavePng(ConversionImages.Flat(800, 800, colors: 4), _dir.File("logo.png"));
         var original = new FileInfo(input).Length;
 
         var result = await _service.OptimiseImageAsync(input, InPlace with { Scale = 0.5 });

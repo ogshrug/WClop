@@ -25,6 +25,12 @@ public sealed record VideoEncodeSpec
     /// <summary>Playback speed; 1 = unchanged, 2 = twice as fast.</summary>
     public double Speed { get; init; } = 1;
 
+    /// <summary>
+    /// With a speed change: stay at the source frame rate, dropping frames, instead of keeping every frame (the frame
+    /// rate rises with the speed, up to the cap).
+    /// </summary>
+    public bool DropFrames { get; init; }
+
     /// <summary>Cap the frame rate at this value; null = no cap.</summary>
     public int? FpsCap { get; init; }
 
@@ -77,7 +83,7 @@ public static class VideoArguments
     /// A cap at or above the source rate is omitted (§9.3 step 3).
     /// </summary>
     public static bool NeedsFpsCap(VideoEncodeSpec spec) =>
-        spec.FpsCap is { } cap && spec.Info.PeakFrameRate * spec.Speed > cap + 0.5;
+        spec.FpsCap is { } cap && spec.Info.PeakFrameRate * (spec.DropFrames ? 1 : spec.Speed) > cap + 0.5;
 
     /// <summary>atempo only takes 0.5–2.0 per filter, so larger changes are chained.</summary>
     public static string AtempoChain(double speed)
@@ -118,12 +124,15 @@ public static class VideoArguments
         }
 
         var capped = NeedsFpsCap(spec);
+        var dropping = !capped && spec.DropFrames && Math.Abs(spec.Speed - 1) > 0.001 && spec.Info.PeakFrameRate > 0;
         if (capped)
             filters.Add("fps=" + I(spec.FpsCap!.Value));
+        else if (dropping)
+            filters.Add("fps=" + spec.Info.PeakFrameRate.ToString("0.###", CultureInfo.InvariantCulture));
         if (filters.Count > 0)
             args.AddRange(["-vf", string.Join(",", filters)]);
 
-        if (!capped)
+        if (!capped && !dropping)
         {
             // Keep every frame where it was. Resampling a variable-frame-rate recording to its (low) average rate
             // throws away exactly the frames where something moves (§9.3 step 4).

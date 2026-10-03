@@ -74,17 +74,19 @@ namespace WClop.Hotkeys
 
                     case HotkeyAction.ClearAll:
                         results.ClearAll();
+                        clipboard.ClearCollection();
                         break;
 
                     case HotkeyAction.SpeedUp:
-                        if (current?.Result is { Kind: Core.Media.MediaKind.Video })
+                        // Always from the original (§9.4): each step re-encodes it at the new speed.
+                        if (current?.Result is { Kind: Core.Media.MediaKind.Video or Core.Media.MediaKind.Audio })
                         {
                             var speed = ResultActions.NextSpeedStep(ResultActions.CurrentSpeed(current));
                             actions.Adjust(current, null, null, $"Speeding up to {speed:0.##}×", speed);
                         }
                         else
                         {
-                            tray.ShowNotice("Speed-up works on a video result: optimise or drop a video first");
+                            tray.ShowNotice("Speed-up works on a video or audio result: optimise or drop one first");
                         }
 
                         break;

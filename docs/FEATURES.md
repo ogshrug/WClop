@@ -14,7 +14,7 @@ Everything WClop does, how it behaves, and the settings that change it. Defaults
 - [Batch mode](#batch-mode)
 - [Pipelines](#pipelines)
 - [Explorer and Send To](#explorer-and-send-to)
-- [Command line](#command-line)
+- [Command line](#command-line) · [AI assistants (MCP)](#ai-assistants-mcp)
 - [Where files go](#where-files-go)
 - [Backups, restore and safety](#backups-restore-and-safety)
 - [Tray icon](#tray-icon)
@@ -61,7 +61,7 @@ The **compression factor** (5–100, **30** for images, **50** for video, **35**
 - **Audio:** kept by default; *Remove audio from videos* drops it.
 - **Conversions:** MOV, MPEG and WebM become MP4 by default.
 - **Screen recordings:** files still being written are waited for, and only processed once the recorder has finished them.
-- **Speed up** a video from its card or with the hotkey: 1.25×, 1.5×, 1.75×, 2×, then 3× … 10×.
+- **Speed up** a video with the X hotkey (on the hovered or newest result): 1.25×, 1.5×, 1.75×, 2×, then 3× … 10×. Every frame is kept, so the frame rate rises with the speed (up to the cap); the `changeSpeed` pipeline step can drop frames to stay at the source frame rate instead. Speed changes always start from the original: 2× then 1.5× gives 1.5×.
 
 ## PDF
 
@@ -74,7 +74,10 @@ PDFs are rewritten with Ghostscript, recompressing the images inside them.
 
 ## Audio
 
-Re-encoded with FFmpeg at a bitrate set by the factor, never above the source's own bitrate. WAV and MP3 become MP3; OGG/Opus stays Opus; FLAC, AIFF, M4A and AAC become AAC (M4A). Cover art is kept in MP3 and M4A. Audio in watched folders is **off** by default.
+Re-encoded with FFmpeg at a bitrate set by the factor, never above the source's own bitrate. WAV and MP3 become MP3; OGG/Opus stays Opus; FLAC, AIFF, M4A and AAC become AAC (M4A). Audio in watched folders is **off** by default.
+
+- **Cover art** (MP3 and M4A; *Compression → Audio → Cover art*): **keep it as it is**, *optimise* it (recompressed as a small JPEG at the same resolution), or *remove* it. When the sound has no bitrate to gain but the cover art does, only the art changes and the sound is copied untouched.
+- **Speed up** audio with the X hotkey on its result, like a video, or with `changeSpeed` in a pipeline. The pitch is kept (FFmpeg's atempo, chained for changes beyond 0.5–2×), and it always starts from the original.
 
 ## Clipboard
 
@@ -90,12 +93,14 @@ Copy an image anywhere and WClop replaces it on the clipboard with the optimised
 - **Clipboard history:** results appear in Win+V history (**on**).
 - **Screenshots:** the Snipping Tool both copies a screenshot and saves it to Pictures\Screenshots. WClop recognises it's the same image and shows one card, not two, while still optimising the saved file.
 - **Skip the next copy:** the tray menu or Ctrl+Alt+Shift+P lets one copy through untouched.
+- **Collect results** (off): each optimised image joins a collection instead of replacing the last one. The clipboard then holds all of them as files, so pasting into a chat app, an email or Explorer attaches every one at once, plus the newest as an image for apps that only take pixels. The collection starts again after **60 s** without a new copy (0 = only when cleared), or when you clear results (tray menu or Ctrl+Alt+Shift+Escape). Everything that's left alone above is still left alone, and a copy that's left alone isn't collected.
 
 ## Drop zone
 
 Drag files towards the edge of the screen and a translucent tab slides out.
 
 - **Drop** to optimise. Hold **Alt** to keep the original and save the result next to it; hold **Ctrl** to optimise aggressively.
+- **At the cursor:** tap **Alt** (press and release it on its own, within about 0.3 s) while dragging and the drop zone opens right under the mouse, presets and all; tap again to hide it, or just drop. Holding Alt, and Alt shortcuts, work as before. *Settings → Results → Drop zone* picks Alt, Ctrl, Shift or nothing; this works even with the edge tab turned off, so the zone then only appears when you ask for it.
 - **Scroll while holding the files** over the tab to pick a preset. The dots show where you are:
   - Normal (your settings)
   - Aggressive
@@ -134,16 +139,22 @@ New files in these folders are optimised automatically.
 
 Each job shows a card in a corner of the screen (**bottom right**, on the screen the mouse is on).
 
-- **Shows:** a thumbnail, the file name, *old → new size (−%)*, dimensions, and progress while working.
+- **Shows:** a thumbnail, the file name, *old → new size (−%)*, dimensions (with the codec for videos and audio, e.g. *1920 × 1080 · H.264*), and progress while working.
 - **Buttons:**
-  - **Dismiss**
-  - **Restore** the original
+  - **Dismiss**, **Restore** the original, **Show in Explorer**
+  - **Downscale:** a slider from 10% to 100%, showing the size as you drag; let go and it's redone from the original, like the − and 1–9 hotkeys
+  - **Compression:** a slider for the compression factor (5–100) for images, videos and audio, or the DPI for PDFs; also redone from the original
+  - **Crop:** opens a row on the card with 16:9, 4:3, 1:1, 9:16 and 1.91:1 (one click crops), a **Smart** toggle that keeps the most detailed part of an image instead of the centre, and a width × height box (Enter crops). Crops always start from the original, so cropping again never compounds, and *Restore* brings back the whole picture. Images and videos (GIFs keep their animation).
   - **Fit under a size** (512 KB … 100 MB; only sizes below the original)
-  - **Convert to** another format
-  - **Show in Explorer**
+  - **Share:** the Windows share sheet (nearby sharing, Mail, Phone Link, apps that accept files)
+  - **Edit with…** (or **Ctrl+E** while the mouse is over a card): opens the file in the app set for its kind in *Settings → Results*, or asks with Windows' *Open with* list
   - **Run a pipeline** (the lightning bolt, when you have saved pipelines that suit the file)
+- **Format bar:** a row of formats along the bottom of the card; one click converts the result (from the original) to that format. Only formats that make sense for the file are shown, never the one it already is, and the codec is named where the extension doesn't say it: *mp4 · HEVC*, *webm · VP9*, *m4a · AAC*, *ogg · Opus*. For videos and audio "already is" goes by codec, so an H.264 MP4 is still offered *mp4 · HEVC*. Turn it off in *Settings → Results* to get the *Convert to…* button back.
+- **Rename:** click the file name, type, and press Enter (Esc cancels). The extension is kept if you leave it off, and a name that's taken is refused rather than replacing the other file.
+- **Right-click** a card for everything at once: rename, Edit with, Share, Crop, Convert to, Show in Explorer, Dismiss.
 - **Drag the thumbnail** into any app to use the file.
 - **Hover** a card to keep it, and to point the hotkeys at it.
+- **Compact list:** when more than **5** results are showing (*Settings → Results*), they collapse into one list with a checkbox per row. **Ctrl+A** selects every row and **Esc** clears the selection while the mouse is over the list; the **Drag** handle drags all the selected files (or all of them, if none are selected) into another app at once, and the header buttons share or dismiss the selection. Rows keep their thumbnail (drag one out on its own) and right-click menu.
 - **Auto-hide** after **30 s** (**10 s** for clipboard results).
 - **Hidden from screenshots** by default, so they don't end up in the screenshot you're taking.
 - Dismissed cards can be brought back (Ctrl+Alt+Shift+=).
@@ -159,14 +170,16 @@ All use **Ctrl+Alt+Shift** by default. The modifiers and every key can be change
 | − | Downscale one step (75%, 50%, 40% …); for PDFs, lower the DPI |
 | 1–9 | Downscale to 10%–90% |
 | U | Restore the original |
-| X | Speed up a video |
+| X | Speed up a video or audio file |
 | P | Running → skip next copy → stopped |
 | Delete | Dismiss the newest result |
 | = | Bring back the last dismissed result |
-| Escape | Clear all results and stop running jobs |
+| Escape | Clear all results and stop running jobs (and start a new clipboard collection) |
 | Space | Open the result in your default viewer |
 
 Hotkeys act on the card under the mouse, else the newest result, else what's on the clipboard.
+
+While the mouse is over the results, **Ctrl+E** edits the card under it, and in the compact list **Ctrl+A** selects every row and **Esc** clears the selection. These are only taken while the mouse is there.
 
 ## Fit under a size
 
@@ -179,10 +192,11 @@ Makes a file fit under a byte limit, from a card, a drop-zone preset, a pipeline
 
 ## Converting
 
-From a card (*Convert to…*), a pipeline (`convert(to: webp)`) or `wclop optimise --to webp`. Conversion always starts from the original.
+From a card's format bar (or *Convert to…*), a pipeline (`convert(to: webp)`) or `wclop optimise --to webp`. Conversion always starts from the original.
 
 - **Images:** JPEG, PNG, WebP, AVIF, GIF.
 - **Videos:** animated GIF, WebM (VP9) and MP4 (HEVC, smaller).
+- **Audio:** MP3, M4A (AAC) and Ogg (Opus), at the audio compression factor's bitrate and never above the source's; cover art is kept in MP3 and M4A.
 - JPEG, PNG and GIF outputs are optimised afterwards.
 - The converted file is saved next to the original by default; restoring removes it.
 
@@ -221,7 +235,8 @@ if(regex: "^screenshot (\d+)") -> downscale(longEdge: 1920) -> convert(webp) -> 
 | `targetSize(size)` | Fit under a size |
 | `watermark(image, position, opacity, scale, margin)` | Overlay a logo on images, videos (every frame, audio kept) and animated GIFs: `bottomRight`, `bottomLeft`, `topRight`, `topLeft` or `center`; width as a share of the file's; pixels from the edges; transparency is kept. Anything left out, including the image, comes from *Settings → Watermark* (bottom right, 100%, 15%, 20 px unless you change them) |
 | `stripExif` | Remove metadata |
-| `changeSpeed(factor)` · `removeAudio` · `capFps(fps)` | Video |
+| `changeSpeed(factor, frames)` | Video and audio, relative to the original (`changeSpeed(2) -> changeSpeed(1.5)` ends at 1.5×). Audio keeps its pitch. Videos keep every frame (`frames: keep`, the frame rate rises up to the cap) or drop frames to stay at the source rate (`frames: drop`) |
+| `removeAudio` · `capFps(fps)` | Video |
 | `lowerBitrate(kbps)` · `normalize(lufs)` | Video and audio (loudness to −16 LUFS by default) |
 | `copy(to)` · `move(to)` · `rename(to)` · `delete` | Files: `~` is your user folder; `%f %e %P %y %m %d %H %M %S %r %i` are name, extension, parent, date and time tokens; a `to` ending in `\` or `/` is a folder; `delete` uses the Recycle Bin |
 | `if(…)` · `ifNot(…)` | Continue only if: `type`, `regex` (captures become `$1`, `${name}`), `nameContains`, `nameIs`, `sizeGreaterThan` / `sizeLowerThan`, `width…` / `height…`, `copiedBy` (the app it was copied from), `source` |
@@ -248,6 +263,7 @@ if(regex: "^screenshot (\d+)") -> downscale(longEdge: 1920) -> convert(webp) -> 
 - The original is backed up before the first step, so *Restore* always gets it back.
 - A step that doesn't apply to the file's type is skipped.
 - A failing script writes a log with its output to the working folder.
+- AI assistants (see [AI assistants](#ai-assistants-mcp)) can't run or save pipelines with `runScript`, or `openWith` a named app, unless you tick *Let AI assistants run pipelines that include runScript steps* (**off**).
 
 `wclop pipeline prompt` prints a complete reference of the language that you can give an AI assistant so it can write pipelines for you.
 
@@ -255,8 +271,9 @@ if(regex: "^screenshot (\d+)") -> downscale(longEdge: 1920) -> convert(webp) -> 
 
 - **Right-click → Optimise with WClop** on any supported file, and **Optimise folder with WClop** on folders. On Windows 11 these are under *Show more options*.
 - **Send to → WClop (optimise).**
+- **Open with → WClop (optimise)** on any supported file (installed copies), which optimises it the same way. WClop is never made the default app.
 - Selecting several files sends them as one job; a folder or more than 30 files opens batch mode.
-- Turn either on or off in *Settings → General*. The installer turns both on.
+- Turn the menu and Send To on or off in *Settings → General*. The installer turns both on.
 
 ## Command line
 
@@ -266,10 +283,12 @@ if(regex: "^screenshot (\d+)") -> downscale(longEdge: 1920) -> convert(webp) -> 
 wclop optimise <files or folders> [--preset <name>] [--factor 1-100] [--scale 50%] [--fit 10MB]
                                   [--to webp] [--keep] [--output temp|inplace|same|specific]
                                   [--allow-larger] [--no-wait] [--local]
+wclop crop <files or folders> --size WxH | --aspect 16:9 [--smart] [--keep] [--output …] [--no-wait] [--local]
 wclop batch <files or folders>
 wclop stop
 wclop settings list | get [name] | set <name> <value> | show
 wclop pipeline list | show | add | delete | check | run | attach | detach | prompt
+wclop mcp
 ```
 
 Examples:
@@ -277,12 +296,35 @@ Examples:
 ```
 wclop optimise video.mp4 --fit 25MB
 wclop optimise *.png --to webp --keep
+wclop crop banner.png --aspect 1.91:1 --smart
+wclop crop clip.mp4 --size 1080x1920 --keep
 wclop settings set compression.imageFactor 45
 wclop pipeline add Web "downscale(longEdge: 1920) -> convert(webp)" --skip-optimise
 wclop pipeline attach Web folder "%USERPROFILE%\Pictures\Screenshots"
 ```
 
+`wclop crop` uses the same crop as result cards and the `crop` pipeline step: `--size 1920x1080` (or `1920x` for a width, `x1080` for a height) crops that many pixels from the centre, `--aspect` crops to a shape (with `--size 1280x`, that wide), and `--smart` keeps the most detailed part of an image. The original is backed up and replaced, unless `--keep` saves `name-cropped` next to it.
+
 Other programs can use the same local API: three named pipes (optimise, stop, settings), reachable only by your Windows account, taking one JSON line in and giving one out.
+
+### AI assistants (MCP)
+
+`wclop mcp` is a [Model Context Protocol](https://modelcontextprotocol.io) server over stdio, so Claude (Desktop or Code) and other assistants can use WClop. *Settings → Pipelines → Connect an AI assistant* shows the configuration to paste into `claude_desktop_config.json` or a Claude Code `.mcp.json`, with buttons to copy it or the `claude mcp add` command:
+
+```json
+{
+  "mcpServers": {
+    "wclop": {
+      "command": "C:\\Users\\you\\AppData\\Local\\Programs\\WClop\\wclop-cli.exe",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
+- **Tools:** `optimise` (files, preset, factor, scale, fit, to, keep), `convert`, `run_pipeline`, `list_pipelines`, `show_pipeline`, `add_pipeline`, `delete_pipeline`, `check_pipeline`, `pipeline_language`, `list_settings`, `get_setting`, `set_setting` and `stop`. The pipeline language reference is also a resource, `wclop://pipelines/language`.
+- Like the command line, it works through the running app (results show as cards) or, when the app isn't running, on its own.
+- **Limits**, enforced by the app itself for every request an assistant makes: no pipelines with scripts or programs unless you allow them (see [Pipelines](#pipelines)); an assistant can't change that setting, and can't make a pipeline run automatically.
 
 ## Where files go
 
@@ -314,7 +356,7 @@ The menu has:
 - Optimise copied images
 - Optimise new images in watched folders
 - the hotkey list with each key's status
-- Clear results
+- Clear results (also empties the clipboard collection)
 - Batch optimise a folder…
 - Open working folder
 - Open settings file
@@ -326,15 +368,17 @@ The menu has:
 
 Changes apply as you make them.
 
+**Search** (the box at the top, or Ctrl+F) looks through every tab as you type: setting names, section headings and the explanations under them. It forgives typos and American spellings ("clipbaord", "color") and abbreviations ("wtrmrk"). Pick a result (click, or arrows and Enter) to jump to its tab, scroll to it and highlight it; Escape clears the box.
+
 - **General:** start when you sign in, Explorer menu, Send To, updates, working folder, cleanup interval, version.
-- **Clipboard:** what to optimise, ignored apps (pick from running apps), extra formats to leave alone, clipboard history, Remote Desktop.
+- **Clipboard:** what to optimise, collecting results, ignored apps (pick from running apps), extra formats to leave alone, clipboard history, Remote Desktop.
 - **Watched folders:** folders per kind, limits, skipped formats, quiet folders.
-- **Compression:** factor slider, video tier and encoder, fps cap, audio, PDF DPI, automatic conversions, metadata.
+- **Compression:** factor slider, video tier and encoder, fps cap, audio and its cover art, PDF DPI, automatic conversions, metadata.
 - **Output:** where files go, name templates with a preview.
-- **Results:** card corner and screen, auto-hide times, drag out, visibility in screenshots, drop zone and its position.
+- **Results:** card corner and screen, auto-hide times, drag out, visibility in screenshots, drop zone, its position and the key that brings it to the cursor, the format bar, when the compact list takes over, and the app *Edit with…* opens for images, videos, PDFs and audio.
 - **Hotkeys:** modifiers, each key on or off, remapping, conflicts.
 - **Watermark:** the image, position, opacity, size and margin, with a live preview.
-- **Pipelines:** everything in [Pipelines](#pipelines).
+- **Pipelines:** everything in [Pipelines](#pipelines), and connecting an [AI assistant](#ai-assistants-mcp).
 
 Settings are stored in `%APPDATA%\WClop\settings.json`.
 
@@ -353,10 +397,11 @@ WClop looks for a new version in its GitHub releases at startup and once a day (
 
 ## Installer
 
-- **Per user:** no administrator rights needed. It installs to `%LOCALAPPDATA%\Programs\WClop`, adds a Start menu entry, puts `wclop` on your PATH, and sets up start at sign-in, the Explorer menu and Send To.
+- **Per user:** no administrator rights needed. It installs to `%LOCALAPPDATA%\Programs\WClop`, adds a Start menu entry, puts `wclop` on your PATH, and sets up start at sign-in, the Explorer menu, Send To and *Open with*.
+- **x64 and Arm:** `WClop-<version>-x64.msi` for Windows 10 and 11, `WClop-<version>-arm64.msi` for Windows 11 on Arm. On Arm, WClop and ffmpeg run natively and the image and PDF tools run under x64 emulation; the updater picks the right one for your PC.
 - **Silent installs** (`msiexec /i WClop.msi /qn`) accept `LAUNCHATLOGIN=0`, `EXPLORERMENU=0` and `LAUNCHAPP=0`.
 - **Updating:** WClop can do it for you (see [Updates](#updates)), or install the newer MSI yourself. The running WClop is closed, updated and started again, and your settings are kept.
-- **Uninstalling** (Settings → Apps) removes the program, shortcuts, PATH entry, Explorer menu, Send To and start at sign-in. Your settings and working folder stay in `%APPDATA%\WClop` and `%LOCALAPPDATA%\WClop`; delete them by hand for a completely clean removal.
+- **Uninstalling** (Settings → Apps) removes the program, shortcuts, PATH entry, Explorer menu, Send To, Open with and start at sign-in. Your settings and working folder stay in `%APPDATA%\WClop` and `%LOCALAPPDATA%\WClop`; delete them by hand for a completely clean removal.
 
 ## Privacy
 

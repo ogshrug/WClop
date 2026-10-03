@@ -19,6 +19,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\WClop.Core\WClop.Core.csproj" />
+    <!-- The MCP server (wclop mcp) is tested in-process and over stdio. -->
+    <ProjectReference Include="..\WClop.Cli\WClop.Cli.csproj" />
   </ItemGroup>
 
 </Project>

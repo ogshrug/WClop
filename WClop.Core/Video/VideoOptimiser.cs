@@ -13,6 +13,7 @@ public sealed record VideoOptimiseOptions
     public VideoTier Tier { get; init; } = VideoTier.Fast;
     public double Scale { get; init; } = 1;
     public double Speed { get; init; } = 1;
+    public bool DropFrames { get; init; }
     public int? FpsCap { get; init; } = 60;
     public bool RemoveAudio { get; init; }
     public bool AllowLarger { get; init; }
@@ -52,6 +53,7 @@ public sealed class VideoOptimiser(ToolLocator tools, AppPaths paths)
             Lossless = options.Tier == VideoTier.Lossless,
             Scale = options.Scale,
             Speed = options.Speed,
+            DropFrames = options.DropFrames,
             FpsCap = options.FpsCap,
             RemoveAudio = options.RemoveAudio,
             TargetKbps = options.TargetKbps,

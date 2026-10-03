@@ -1,4 +1,5 @@
 using System.Net.Http.Headers;
+using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text.Json;
 
@@ -11,6 +12,9 @@ public sealed record AvailableUpdate(string Version, string Tag, Uri ReleasePage
     public string? Sha256 { get; init; }
 
     public Uri? ChecksumFile { get; init; }
+
+    /// <summary>The installer's architecture as the release names it: "x64" or "arm64".</summary>
+    public string Architecture { get; init; } = "x64";
 }
 
 /// <summary>
@@ -43,8 +47,22 @@ public sealed class UpdateChecker(HttpClient? httpClient = null, string reposito
         return Parse(await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false), currentVersion);
     }
 
-    /// <summary>Reads a GitHub "latest release" response. Null if it isn't newer or has no installer.</summary>
-    public static AvailableUpdate? Parse(string json, string currentVersion)
+    /// <summary>
+    /// The release asset architectures to try for a machine, best first. Windows on Arm gets the arm64 installer, and
+    /// the x64 one if a release has none (Windows 11 runs it under emulation); everything else gets x64.
+    /// </summary>
+    public static IReadOnlyList<string> InstallerArchitectures(Architecture machine) =>
+        machine == Architecture.Arm64 ? ["arm64", "x64"] : ["x64"];
+
+    /// <summary>
+    /// Reads a GitHub "latest release" response, picking the installer for this machine
+    /// (<see cref="RuntimeInformation.OSArchitecture"/>, so an x64 copy on an Arm PC moves to the native build).
+    /// Null if it isn't newer or has no installer.
+    /// </summary>
+    public static AvailableUpdate? Parse(string json, string currentVersion) => Parse(json, currentVersion, RuntimeInformation.OSArchitecture);
+
+    /// <summary>Reads a GitHub "latest release" response for a machine of <paramref name="machine"/> architecture.</summary>
+    public static AvailableUpdate? Parse(string json, string currentVersion, Architecture machine)
     {
         using var document = JsonDocument.Parse(json);
         var root = document.RootElement;
@@ -58,7 +76,10 @@ public sealed class UpdateChecker(HttpClient? httpClient = null, string reposito
             assets.FirstOrDefault(a => string.Equals(a.GetProperty("name").GetString(), name, StringComparison.OrdinalIgnoreCase)) is
                 { ValueKind: JsonValueKind.Object } found ? found : null;
 
-        var installer = Asset($"WClop-{version}-x64.msi") ?? Asset("WClop-x64.msi");
+        // Per architecture: the versioned name, then the fixed-name copy (releases/latest/download/WClop-<arch>.msi).
+        var (installer, arch) = InstallerArchitectures(machine)
+            .Select(a => (Asset: Asset($"WClop-{version}-{a}.msi") ?? Asset($"WClop-{a}.msi"), Arch: a))
+            .FirstOrDefault(found => found.Asset is not null);
         if (installer is not { } msi)
             return null;
 
@@ -66,7 +87,7 @@ public sealed class UpdateChecker(HttpClient? httpClient = null, string reposito
         var digest = msi.TryGetProperty("digest", out var d) && d.GetString() is { } value && value.StartsWith("sha256:", StringComparison.Ordinal)
             ? value["sha256:".Length..]
             : null;
-        var checksum = Asset($"WClop-{version}-x64.msi.sha256");
+        var checksum = Asset($"WClop-{version}-{arch}.msi.sha256");
 
         return new AvailableUpdate(
             version,
@@ -79,6 +100,7 @@ public sealed class UpdateChecker(HttpClient? httpClient = null, string reposito
         {
             Sha256 = digest,
             ChecksumFile = checksum is { } c ? new Uri(c.GetProperty("browser_download_url").GetString()!) : null,
+            Architecture = arch,
         };
     }
 
@@ -115,7 +137,7 @@ public sealed class UpdateChecker(HttpClient? httpClient = null, string reposito
             throw new InvalidDataException("The release has no checksum for its installer, so it can't be verified");
 
         Directory.CreateDirectory(folder);
-        var path = Path.Combine(folder, $"WClop-{update.Version}-x64.msi");
+        var path = Path.Combine(folder, $"WClop-{update.Version}-{update.Architecture}.msi");
         var temp = path + ".part";
         using (var response = await Client.GetAsync(update.Installer, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
                    .ConfigureAwait(false))

@@ -15,6 +15,36 @@ public sealed class AppSettings
     public HotkeySettings Hotkeys { get; set; } = new();
     public PipelineSettings Pipelines { get; set; } = new();
     public UpdateSettings Updates { get; set; } = new();
+    public ResultCardSettings ResultCards { get; set; } = new();
+}
+
+/// <summary>Result card extras (Clop 3): the format bar, the compact list, and the app "Edit with…" opens.</summary>
+public sealed class ResultCardSettings
+{
+    /// <summary>One-click conversions along the bottom of each card.</summary>
+    public bool ShowFormatBar { get; set; } = true;
+
+    /// <summary>More cards than this collapse into a compact list with checkboxes.</summary>
+    public int CompactListThreshold { get; set; } = 5;
+
+    /// <summary>Program paths for "Edit with…" (Ctrl+E); empty asks with Windows' "Open with" dialog.</summary>
+    public string? EditImagesWith { get; set; }
+
+    public string? EditVideosWith { get; set; }
+    public string? EditPdfsWith { get; set; }
+    public string? EditAudioWith { get; set; }
+
+    public bool IsCompact(int cardCount) => cardCount > Math.Max(1, CompactListThreshold);
+
+    /// <summary>The editor set for a kind of file (expanded), or null for the "Open with" dialog.</summary>
+    public string? EditorFor(Media.MediaKind kind) => (kind switch
+    {
+        Media.MediaKind.Image => EditImagesWith,
+        Media.MediaKind.Video => EditVideosWith,
+        Media.MediaKind.Pdf => EditPdfsWith,
+        Media.MediaKind.Audio => EditAudioWith,
+        _ => null,
+    }) is { Length: > 0 } app ? PortablePath.Expand(app.Trim().Trim('"')) : null;
 }
 
 /// <summary>New versions from the GitHub releases (installed copies only).</summary>
@@ -154,6 +184,15 @@ public sealed class ClipboardSettings
 
     public bool AppendResults { get; set; }
     public int AppendResultsTimeoutSeconds { get; set; } = 30;
+
+    /// <summary>
+    /// Collect clipboard results (Clop 3.0): each optimised image is added to a collection that goes on the
+    /// clipboard as one file list (plus the newest image's pixels), so they all paste at once.
+    /// </summary>
+    public bool CollectResults { get; set; }
+
+    /// <summary>The collection starts again after this long without a new image. 0 = only when cleared.</summary>
+    public int CollectResultsIdleSeconds { get; set; } = 60;
 }
 
 public sealed class WatchingSettings
@@ -258,6 +297,17 @@ public enum PdfDpiMode
     Fixed,
 }
 
+public enum CoverArtMode
+{
+    /// <summary>Copied as it is.</summary>
+    Keep,
+
+    /// <summary>Recompressed as a small JPEG at the same resolution.</summary>
+    Optimise,
+
+    Remove,
+}
+
 public sealed class CompressionSettings
 {
     /// <summary>5–100, higher means smaller files (§7).</summary>
@@ -273,6 +323,9 @@ public sealed class CompressionSettings
     public bool RemoveAudioFromVideos { get; set; }
 
     public int AudioFactor { get; set; } = 35;
+
+    /// <summary>What happens to cover art embedded in audio files (§11).</summary>
+    public CoverArtMode AudioCoverArt { get; set; } = CoverArtMode.Keep;
 
     public PdfDpiMode PdfDpiMode { get; set; } = PdfDpiMode.Adaptive;
     public int PdfFixedDpi { get; set; } = 150;
@@ -372,4 +425,7 @@ public sealed class UiSettings
 
     /// <summary>Where along that edge, 0–100 % (top→bottom or left→right) to the tab's centre.</summary>
     public double DropZonePosition { get; set; } = 72;
+
+    /// <summary>Tapping this modifier during a drag shows the drop zone under the cursor; tap again to hide it.</summary>
+    public DropZone.TapModifier DropZoneTapKey { get; set; } = DropZone.TapModifier.Alt;
 }

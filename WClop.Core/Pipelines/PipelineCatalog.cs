@@ -73,7 +73,14 @@ public sealed record CompiledPipeline(IReadOnlyList<CompiledStep> Steps, string 
     /// <summary>Whether a step re-encodes (so optimising first would encode twice, project.md §18.3).</summary>
     public bool Encodes => Steps.Any(s => s.Spec.Category == StepCategory.Processing && s.Name != "stripExif");
 
-    public bool RunsScripts => Steps.Any(s => s.Name == "runScript");
+    /// <summary>
+    /// Whether it starts programs of its own choosing: <c>runScript</c>, <c>openWith</c> a named app, or either inside
+    /// an inline <c>fork</c> (a fork of a saved pipeline is checked when that runs).
+    /// </summary>
+    public bool RunsScripts => Steps.Any(s => s.Name == "runScript"
+                                              || s.Name == "openWith" && s.Has("app")
+                                              || s.Name == "fork" && PipelineCatalog.TryCompile(s.Get<string>("steps")!, out var forked, out _)
+                                                                  && forked!.RunsScripts);
 }
 
 /// <summary>Every step of the pipeline language (project.md §19.2), with argument types for validation.</summary>
@@ -140,9 +147,16 @@ public static class PipelineCatalog
             "watermark(image: \"~/Pictures/logo.png\", position: bottomRight, opacity: 80%)") { Kinds = Visual, DefaultArg = "image" },
         new("stripExif", StepCategory.Processing, "Remove metadata (camera, location, dates, comments)", [],
             "stripExif") { Aliases = ["stripMetadata"] },
-        new("changeSpeed", StepCategory.Processing, "Speed a video up (or slow it down)",
-            [new("factor", ArgType.Number, "2 = twice as fast") { Min = 0.25, Max = 10 }],
-            "changeSpeed(2)") { Kinds = Videos, DefaultArg = "factor", RequiresOneOf = ["factor"] },
+        new("changeSpeed", StepCategory.Processing,
+            "Speed a video or audio file up (or slow it down), keeping the pitch. The speed is relative to the original, so changeSpeed(2) -> changeSpeed(1.5) ends at 1.5×",
+            [
+                new("factor", ArgType.Number, "2 = twice as fast") { Min = 0.25, Max = 10 },
+                new("frames", ArgType.Choice, "Videos: keep (default) every frame, so the frame rate rises with the speed (up to the cap in Settings), or drop frames to stay at the source frame rate")
+                {
+                    Choices = ["keep", "drop"],
+                },
+            ],
+            "changeSpeed(factor: 2, frames: drop)") { Kinds = Sound, DefaultArg = "factor", RequiresOneOf = ["factor"] },
         new("removeAudio", StepCategory.Processing, "Drop a video's audio track", [], "removeAudio") { Kinds = Videos },
         new("capFps", StepCategory.Processing, "Limit a video's frame rate",
             [new("fps", ArgType.Number, "Frames per second") { Min = 1, Max = 240 }],
@@ -355,13 +369,9 @@ public static class PipelineCatalog
                     throw new PipelineSyntaxException($"Invalid regex: {e.Message}", value.Position);
                 }
             case ArgType.Ratio:
-                var parts = text.Split(':', '/', 'x');
-                if (parts.Length != 2
-                    || !double.TryParse(parts[0], NumberStyles.Float, CultureInfo.InvariantCulture, out var w)
-                    || !double.TryParse(parts[1], NumberStyles.Float, CultureInfo.InvariantCulture, out var h)
-                    || w <= 0 || h <= 0)
+                if (!Cropping.CropSpec.TryParseRatio(text, out var ratio))
                     throw Bad("a ratio like \"16:9\"");
-                return w / h;
+                return ratio;
             default:
                 throw new ArgumentOutOfRangeException(nameof(arg));
         }

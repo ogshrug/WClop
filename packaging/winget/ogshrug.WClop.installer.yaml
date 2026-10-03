@@ -1,0 +1,43 @@
+# Template: scripts/winget-manifest.ps1 fills in the {{...}} values. See docs/RELEASING.md.
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.installer.1.12.0.schema.json
+
+PackageIdentifier: ogshrug.WClop
+PackageVersion: {{Version}}
+Platform:
+- Windows.Desktop
+MinimumOSVersion: 10.0.17763.0
+InstallerType: wix
+Scope: user
+InstallModes:
+- interactive
+- silent
+- silentWithProgress
+# The MSI's own properties: LAUNCHAPP (start WClop afterwards), LAUNCHATLOGIN (start at sign-in) and EXPLORERMENU
+# (Explorer menu and Send To), all 1 by default. `winget install --silent` doesn't start the app; the default mode
+# (silentWithProgress) does, so `winget upgrade` brings back the copy the installer closed.
+InstallerSwitches:
+  Silent: /quiet /norestart LAUNCHAPP=0
+  SilentWithProgress: /passive /norestart
+UpgradeBehavior: install
+Commands:
+- wclop
+ReleaseDate: {{ReleaseDate}}
+Installers:
+- Architecture: x64
+  InstallerUrl: https://github.com/ogshrug/WClop/releases/download/v{{Version}}/WClop-{{Version}}-x64.msi
+  InstallerSha256: {{X64Sha256}}
+  ProductCode: '{{X64ProductCode}}'
+  AppsAndFeaturesEntries:
+  - ProductCode: '{{X64ProductCode}}'
+    UpgradeCode: '{BCCB4DB4-A56A-4483-B1E1-2630E472647A}'
+# arm64 (left out for releases without the arm64 installer). Its image/PDF tools run under x64 emulation: Windows 11.
+- Architecture: arm64
+  MinimumOSVersion: 10.0.22000.0
+  InstallerUrl: https://github.com/ogshrug/WClop/releases/download/v{{Version}}/WClop-{{Version}}-arm64.msi
+  InstallerSha256: {{Arm64Sha256}}
+  ProductCode: '{{Arm64ProductCode}}'
+  AppsAndFeaturesEntries:
+  - ProductCode: '{{Arm64ProductCode}}'
+    UpgradeCode: '{BCCB4DB4-A56A-4483-B1E1-2630E472647A}'
+ManifestType: installer
+ManifestVersion: 1.12.0

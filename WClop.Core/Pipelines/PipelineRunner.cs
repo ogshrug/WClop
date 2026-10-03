@@ -5,6 +5,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using WClop.Core.Audio;
 using WClop.Core.Compression;
+using WClop.Core.Cropping;
 using WClop.Core.Images;
 using WClop.Core.Logging;
 using WClop.Core.Media;
@@ -176,6 +177,10 @@ public sealed class PipelineRunner(FileOptimisationService service, AppSettings 
         public string Current { get; set; } = current;
         public PipelineContext Context { get; } = context;
         public bool Changed { get; set; }
+
+        /// <summary>The playback speed so far, relative to the file the run started with.</summary>
+        public double Speed { get; set; } = 1;
+
         public int Depth { get; } = depth;
         public Dictionary<string, string> Captures { get; } = captures;
         public List<string> Log { get; } = [];
@@ -283,14 +288,8 @@ public sealed class PipelineRunner(FileOptimisationService service, AppSettings 
         var extension => FileFormats.FromExtension("x." + extension) is var wanted && wanted != FileFormat.Unknown && wanted == format,
     };
 
-    private async Task<ImageSize?> ReadSizeAsync(string path, MediaKind kind, CancellationToken cancellationToken) => kind switch
-    {
-        MediaKind.Image => ImageDecoding.TryReadSize(path),
-        MediaKind.Video => await VideoInfo.ProbeAsync(Tools.Require(Tool.Ffprobe), path, cancellationToken).ConfigureAwait(false) is { } info
-            ? new ImageSize(info.Width, info.Height)
-            : null,
-        _ => null,
-    };
+    private Task<ImageSize?> ReadSizeAsync(string path, MediaKind kind, CancellationToken cancellationToken) =>
+        service.Cropper.ReadSizeAsync(path, kind, cancellationToken);
 
     // Processing
 
@@ -325,8 +324,21 @@ public sealed class PipelineRunner(FileOptimisationService service, AppSettings 
                 break;
 
             case "changeSpeed":
-                await ServiceStepAsync(run, new FileOptimisationRequest { Speed = step.Get<double>("factor"), AllowLarger = true }, cancellationToken)
-                    .ConfigureAwait(false);
+                // Relative to the original: after changeSpeed(2), changeSpeed(1.5) applies 0.75 to end at 1.5×.
+                var speed = step.Get<double>("factor");
+                if (Math.Abs(speed / run.Speed - 1) < 0.001)
+                {
+                    run.Note($"changeSpeed: already {speed:0.##}×");
+                    break;
+                }
+
+                await ServiceStepAsync(run, new FileOptimisationRequest
+                {
+                    Speed = speed / run.Speed,
+                    DropFrames = step.Get<string>("frames") == "drop",
+                    AllowLarger = true,
+                }, cancellationToken).ConfigureAwait(false);
+                run.Speed = speed;
                 break;
 
             case "convert":
@@ -343,7 +355,7 @@ public sealed class PipelineRunner(FileOptimisationService service, AppSettings 
                 break;
 
             case "crop":
-                await CropAsync(step, run, kind, cancellationToken).ConfigureAwait(false);
+                await CropAsync(step, run, cancellationToken).ConfigureAwait(false);
                 break;
 
             case "watermark":
@@ -432,108 +444,37 @@ public sealed class PipelineRunner(FileOptimisationService service, AppSettings 
         run.Note($"{what}: {before} → {new FileInfo(run.Current).Length} bytes");
     }
 
-    internal static (int Width, int Height, int X, int Y)? CropRectangle(CompiledStep step, ImageSize size, bool even)
+    /// <summary>The step's arguments as a <see cref="CropSpec"/> (the same crop result cards and <c>wclop crop</c> use).</summary>
+    internal static CropSpec CropOf(CompiledStep step) => new()
     {
-        double width = size.Width, height = size.Height;
-        if (step.Has("aspectRatio"))
-        {
-            var ratio = step.Get<double>("aspectRatio");
-            if (step.Has("width"))
-            {
-                width = Math.Min(step.Get<int>("width"), size.Width);
-                height = width / ratio;
-            }
-            else if (step.Has("height"))
-            {
-                height = Math.Min(step.Get<int>("height"), size.Height);
-                width = height * ratio;
-            }
-            else if ((double)size.Width / size.Height > ratio)
-            {
-                width = size.Height * ratio;
-            }
-            else
-            {
-                height = size.Width / ratio;
-            }
+        Width = step.Has("width") ? step.Get<int>("width") : null,
+        Height = step.Has("height") ? step.Get<int>("height") : null,
+        AspectRatio = step.Has("aspectRatio") ? step.Get<double>("aspectRatio") : null,
+        Smart = step.Get<bool>("smart"),
+    };
 
-            // Shrink to fit if the other side came out too big.
-            var fit = Math.Min(1, Math.Min(size.Width / width, size.Height / height));
-            width *= fit;
-            height *= fit;
-        }
-        else
-        {
-            width = Math.Min(step.Has("width") ? step.Get<int>("width") : size.Width, size.Width);
-            height = Math.Min(step.Has("height") ? step.Get<int>("height") : size.Height, size.Height);
-        }
+    internal static (int Width, int Height, int X, int Y)? CropRectangle(CompiledStep step, ImageSize size, bool even) =>
+        CropOf(step).Rectangle(size, even);
 
-        var w = (int)Math.Round(width);
-        var h = (int)Math.Round(height);
-        if (even)
-        {
-            w -= w % 2;
-            h -= h % 2;
-        }
-
-        w = Math.Max(w, 2);
-        h = Math.Max(h, 2);
-        if (w >= size.Width && h >= size.Height)
-            return null;
-        return (w, h, (size.Width - w) / 2, (size.Height - h) / 2);
-    }
-
-    private async Task CropAsync(CompiledStep step, Run run, MediaKind kind, CancellationToken cancellationToken)
+    private async Task CropAsync(CompiledStep step, Run run, CancellationToken cancellationToken)
     {
-        var size = await ReadSizeAsync(run.Current, kind, cancellationToken).ConfigureAwait(false)
-                   ?? throw new PipelineException("Can't read the size to crop");
-        if (CropRectangle(step, size, even: kind == MediaKind.Video) is not var (w, h, x, y))
+        CropOutput? cropped;
+        try
         {
-            run.Note($"crop: already {size}");
+            cropped = await service.Cropper.CropAsync(run.Current, CropOf(step), cancellationToken).ConfigureAwait(false);
+        }
+        catch (UnsupportedFormatException e)
+        {
+            throw new PipelineException("crop: " + e.Message);
+        }
+
+        if (cropped is null)
+        {
+            run.Note("crop: already that size");
             return;
         }
 
-        var format = FileTypeSniffer.Detect(run.Current);
-        var what = $"cropped to {w}×{h}";
-        if (step.Get<bool>("smart") && kind == MediaKind.Image)
-        {
-            try
-            {
-                (x, y) = ImageInterest.BestWindow(run.Current, size, w, h);
-                what += " (smart)";
-            }
-            catch (Exception e) when (e is NotSupportedException or IOException or InvalidOperationException or ArgumentException)
-            {
-                // WIC can't decode it (HEIC without the extension…): the centre it is.
-            }
-        }
-        if (format == FileFormat.Gif)
-        {
-            var output = TempPath(".gif");
-            var result = await ProcessRunner.RunAsync(Tools.Require(Tool.Gifsicle),
-                ["--crop", $"{x},{y}+{w}x{h}", "-o", output, run.Current], cancellationToken: cancellationToken).ConfigureAwait(false);
-            if (!result.Succeeded)
-                throw new ToolFailedException(result);
-            Commit(run, output, what);
-            return;
-        }
-
-        var crop = $"crop={w}:{h}:{x}:{y}";
-        if (kind == MediaKind.Video)
-        {
-            await FfmpegStepAsync(run, what, ["-vf", crop, .. VideoCodec(run.Current), "-c:a", "copy"], VideoOutputExtension(run.Current), cancellationToken)
-                .ConfigureAwait(false);
-            return;
-        }
-
-        string[] quality = format switch
-        {
-            FileFormat.Jpeg => ["-q:v", "2"],
-            FileFormat.WebP => ["-quality", "92"],
-            FileFormat.Png or FileFormat.Bmp or FileFormat.Tiff => [],
-            _ => throw new PipelineException($"crop can't write {format} images; convert them first"),
-        };
-        await FfmpegStepAsync(run, what, ["-vf", crop, "-frames:v", "1", "-update", "1", .. quality], null, cancellationToken).ConfigureAwait(false);
+        Commit(run, cropped.Path, $"cropped to {cropped.Size}{(cropped.Smart ? " (smart)" : "")}");
     }
 
     /// <summary>
@@ -702,18 +643,9 @@ public sealed class PipelineRunner(FileOptimisationService service, AppSettings 
         _ => null,
     };
 
-    private static string[] VideoCodec(string path) => FileTypeSniffer.Detect(path) == FileFormat.WebM
-        ? ["-c:v", "libvpx-vp9", "-crf", "32", "-b:v", "0", "-row-mt", "1"]
-        : ["-c:v", "libx264", "-preset", "medium", "-crf", "20", "-pix_fmt", "yuv420p"];
+    private static string[] VideoCodec(string path) => VideoReencode.Codec(path);
 
-    /// <summary>Keeps the container when re-encoding, except ones that don't suit H.264 (AVI, MPEG), which become MP4.</summary>
-    private static string VideoOutputExtension(string path) => FileTypeSniffer.Detect(path) switch
-    {
-        FileFormat.WebM => ".webm",
-        FileFormat.Mov => ".mov",
-        FileFormat.Mkv => ".mkv",
-        _ => ".mp4",
-    };
+    private static string VideoOutputExtension(string path) => VideoReencode.OutputExtension(path);
 
     private Task<VideoInfo?> ProbeVideoAsync(string path, CancellationToken cancellationToken) =>
         VideoInfo.ProbeAsync(Tools.Require(Tool.Ffprobe), path, cancellationToken);
@@ -880,6 +812,8 @@ public sealed class PipelineRunner(FileOptimisationService service, AppSettings 
                 break;
 
             case "openWith":
+                if (step.Has("app") && !run.Context.AllowScripts)
+                    throw new PipelineException("Opening the file in a named app isn't allowed here");
                 var start = step.Get<string>("app") is { } app
                     ? new ProcessStartInfo(run.Expand(app), $"\"{run.Current}\"") { UseShellExecute = true }
                     : new ProcessStartInfo(run.Current) { UseShellExecute = true };

@@ -6,8 +6,8 @@ namespace WClop.Integration
 {
     /// <summary>
     /// What WClop.exe was asked to do on its command line:
-    /// <c>--explorer</c> / <c>--send-to</c> &lt;files&gt; (the right-click menu and Send To), <c>--batch</c> &lt;paths&gt;,
-    /// and <c>--settings</c>. A second launch forwards these to the running instance over the local API.
+    /// <c>--explorer</c> / <c>--send-to</c> &lt;files&gt; (the right-click menu and Send To), bare &lt;files&gt; ("Open with"),
+    /// <c>--batch</c> &lt;paths&gt;, and <c>--settings</c>. A second launch forwards these to the running instance over the local API.
     /// </summary>
     internal sealed record LaunchArgs(IReadOnlyList<string> Files, IpcSource Source, IReadOnlyList<string> Batch, bool Settings)
     {
@@ -26,8 +26,10 @@ namespace WClop.Integration
         {
             var explorer = After(args, "--explorer");
             var sendTo = After(args, "--send-to");
+            // Explorer's "Open with" (and dropping files on WClop.exe) passes bare paths: optimise them like the menu.
+            var bare = args.TakeWhile(a => !a.StartsWith("--", StringComparison.Ordinal)).ToList();
             return new LaunchArgs(
-                [.. explorer, .. sendTo],
+                [.. bare, .. explorer, .. sendTo],
                 sendTo.Count > 0 ? IpcSource.SendTo : IpcSource.Explorer,
                 After(args, "--batch"),
                 args.Contains("--settings", StringComparer.OrdinalIgnoreCase))

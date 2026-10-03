@@ -5,6 +5,7 @@ using System.Runtime.CompilerServices;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using WClop.Core.Ipc;
 using WClop.Core.Pipelines;
 using WClop.Core.Settings;
 
@@ -35,6 +36,7 @@ namespace WClop.Settings
         {
             InitializeComponent();
             ReferenceBox.Text = PipelineCatalog.Prompt();
+            McpConfigBox.Text = McpConfig.Json(McpCommand);
             PipelineList.ItemsSource = _pipelines;
         }
 
@@ -285,6 +287,29 @@ namespace WClop.Settings
             {
                 Changed?.Invoke();
                 TryPipeline(pipeline.Name, dialog.FileName);
+            }
+        }
+
+        // Connect an AI assistant
+
+        private static string McpCommand => McpConfig.Command(AppContext.BaseDirectory);
+
+        private void CopyMcpConfig_Click(object sender, RoutedEventArgs e) => Copy(McpConfigBox.Text, "Copied. Paste it into the assistant's configuration.");
+
+        private void CopyMcpCommand_Click(object sender, RoutedEventArgs e) =>
+            Copy(McpConfig.ClaudeCodeCommand(McpCommand), "Copied. Run it in a terminal to add WClop to Claude Code.");
+
+        private void Copy(string text, string done)
+        {
+            try
+            {
+                System.Windows.Clipboard.SetText(text);
+                McpCopiedText.Text = done;
+            }
+            catch (System.Runtime.InteropServices.COMException)
+            {
+                // Another app has the clipboard open.
+                McpCopiedText.Text = "Couldn't copy (the clipboard is busy); select the text and copy it instead.";
             }
         }
 

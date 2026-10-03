@@ -133,16 +133,9 @@ namespace WClop.Clipboard
             return false;
         }
 
-        public static byte[] DropFiles(string path)
-        {
-            const int headerSize = 20;
-            var pathBytes = Encoding.Unicode.GetBytes(path + "\0\0");
-            var data = new byte[headerSize + pathBytes.Length];
-            BinaryPrimitives.WriteUInt32LittleEndian(data, headerSize); // pFiles
-            BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(16), 1); // fWide
-            pathBytes.CopyTo(data, headerSize);
-            return data;
-        }
+        public static byte[] DropFiles(string path) => DropFiles([path]);
+
+        public static byte[] DropFiles(IReadOnlyList<string> paths) => Core.Clipboard.ClipboardCollection.DropFiles(paths);
 
         public static byte[] Dword(uint value)
         {

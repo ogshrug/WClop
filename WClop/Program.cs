@@ -118,7 +118,9 @@ namespace WClop
                 app.Dispatcher.BeginInvoke(() => new WClop.Batch.BatchWindow(service, paths, preset, keepOriginals).Show());
             dropHandler.BatchRequested += OpenBatch;
             dropHandler.Notice += message => app.Dispatcher.BeginInvoke(() => tray.ShowNotice(message));
-            var dropZone = new DropZoneWindow(settings, dropHandler, mouseHook);
+            using var keyboardHook = new KeyboardHook();
+            keyboardHook.Start();
+            var dropZone = new DropZoneWindow(settings, dropHandler, mouseHook, keyboardHook);
 
             var hotkeyActions = new HotkeyActions(results, actions, clipboard, tray);
             using var hotkeys = new HotkeyManager(settings.Hotkeys, hotkeyActions.Handle);

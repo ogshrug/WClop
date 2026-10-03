@@ -1,0 +1,34 @@
+# Template: scripts/winget-manifest.ps1 fills in the {{...}} values. See docs/RELEASING.md.
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.defaultLocale.1.12.0.schema.json
+
+PackageIdentifier: ogshrug.WClop
+PackageVersion: {{Version}}
+PackageLocale: en-US
+Publisher: WClop
+PublisherUrl: https://github.com/ogshrug
+PublisherSupportUrl: https://github.com/ogshrug/WClop/issues
+PackageName: WClop
+PackageUrl: https://github.com/ogshrug/WClop
+License: GPL-3.0-or-later
+LicenseUrl: https://github.com/ogshrug/WClop/blob/main/LICENSE
+ShortDescription: Automatic image, video, PDF and audio optimiser.
+Description: |-
+  WClop quietly makes images, videos, PDFs and audio smaller as you copy, drop and save them: copied screenshots are
+  swapped for optimised versions on the clipboard, files dropped on the edge of the screen are optimised, and new
+  screenshots and screen recordings are optimised as they're saved. Originals are always backed up. Includes an
+  Explorer menu, batch mode, pipelines and the wclop command. A Windows take on Clop for macOS.
+Moniker: wclop
+Tags:
+- clipboard
+- compression
+- ffmpeg
+- image-optimizer
+- optimizer
+- pdf
+- png
+- screenshot
+- video
+- webp
+ReleaseNotesUrl: https://github.com/ogshrug/WClop/releases/tag/v{{Version}}
+ManifestType: defaultLocale
+ManifestVersion: 1.12.0

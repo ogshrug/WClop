@@ -53,6 +53,7 @@ namespace WClop.Settings
             _applyTimer.Stop();
 
             InitializeComponent();
+            AddSearch();
             DataContext = settings;
             _appliedSnapshot = SettingsStore.Snapshot(settings);
             PipelinesTab.Load(settings);
@@ -60,6 +61,8 @@ namespace WClop.Settings
             PipelinesTab.Changed += ScheduleApply;
             WatermarkTab.Load(settings);
             WatermarkTab.Changed += ScheduleApply;
+            ResultCardsSection.Load(settings);
+            ResultCardsSection.Changed += ScheduleApply;
 
             CleanupBox.ItemsSource = new[]
             {
@@ -94,6 +97,12 @@ namespace WClop.Settings
                 .Select(dpi => new Choice<int>(dpi, dpi == 300 ? "300 (lossless)" : $"{dpi} DPI"))
                 .ToArray();
             AudioFactor_Changed(this, new RoutedPropertyChangedEventArgs<double>(0, 0));
+            CoverArtBox.ItemsSource = new[]
+            {
+                new Choice<CoverArtMode>(CoverArtMode.Keep, "Keep it as it is"),
+                new Choice<CoverArtMode>(CoverArtMode.Optimise, "Optimise it (smaller JPEG, same size)"),
+                new Choice<CoverArtMode>(CoverArtMode.Remove, "Remove it"),
+            };
             ConvertToJpegBox.IsChecked = settings.Compression.ConvertToJpeg.Count > 0;
             ConvertToPngBox.IsChecked = settings.Compression.ConvertToPng.Count > 0;
 
@@ -103,6 +112,13 @@ namespace WClop.Settings
                 new Choice<WClop.Core.DropZone.ScreenEdge>(WClop.Core.DropZone.ScreenEdge.Left, "Left"),
                 new Choice<WClop.Core.DropZone.ScreenEdge>(WClop.Core.DropZone.ScreenEdge.Top, "Top"),
                 new Choice<WClop.Core.DropZone.ScreenEdge>(WClop.Core.DropZone.ScreenEdge.Bottom, "Bottom"),
+            };
+            DropTapKeyBox.ItemsSource = new[]
+            {
+                new Choice<WClop.Core.DropZone.TapModifier>(WClop.Core.DropZone.TapModifier.Alt, "Alt"),
+                new Choice<WClop.Core.DropZone.TapModifier>(WClop.Core.DropZone.TapModifier.Ctrl, "Ctrl"),
+                new Choice<WClop.Core.DropZone.TapModifier>(WClop.Core.DropZone.TapModifier.Shift, "Shift"),
+                new Choice<WClop.Core.DropZone.TapModifier>(WClop.Core.DropZone.TapModifier.None, "Nothing (off)"),
             };
             CornerBox.ItemsSource = new[]
             {
@@ -161,6 +177,20 @@ namespace WClop.Settings
                 _hotkeys.Changed -= OnHotkeysChanged;
                 ApplyNow();
             };
+        }
+
+        /// <summary>
+        /// Puts the search box above the tabs. It's added here rather than in the XAML so the tabs' markup stays as it
+        /// is; the search reads whatever the tabs contain.
+        /// </summary>
+        private void AddSearch()
+        {
+            var tabs = (TabControl)Content;
+            Content = null;
+            var search = new SettingsSearchBox { Margin = new Thickness(8, 8, 8, 0) };
+            DockPanel.SetDock(search, Dock.Top);
+            Content = new DockPanel { Children = { search, tabs } };
+            search.Attach(tabs, this);
         }
 
         private void OnEdited(object sender, RoutedEventArgs e)

@@ -1,0 +1,50 @@
+<UserControl x:Class="WClop.Settings.ResultCardsPanel"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <UserControl.Resources>
+        <Style x:Key="Section" TargetType="TextBlock">
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="Margin" Value="0,18,0,6" />
+        </Style>
+        <Style x:Key="Hint" TargetType="TextBlock">
+            <Setter Property="Opacity" Value="0.7" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="Margin" Value="0,2,0,6" />
+        </Style>
+        <Style x:Key="Label" TargetType="TextBlock">
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Margin" Value="0,4,12,4" />
+        </Style>
+    </UserControl.Resources>
+
+    <StackPanel>
+        <TextBlock Style="{StaticResource Section}" Text="Cards" />
+        <CheckBox x:Name="FormatBarBox" Content="Show a format bar on each card (convert in one click)"
+                  Checked="Setting_Changed" Unchecked="Setting_Changed" />
+        <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+            <TextBlock Style="{StaticResource Label}" Text="Switch to a compact list when more than" />
+            <TextBox x:Name="ThresholdBox" Width="50" Margin="0,3" LostFocus="ThresholdBox_LostFocus"
+                     AutomationProperties.Name="Compact list threshold" />
+            <TextBlock Style="{StaticResource Label}" Text="results are showing" Margin="8,4,0,4" />
+        </StackPanel>
+        <TextBlock Style="{StaticResource Hint}"
+                   Text="The compact list has checkboxes: Ctrl+A selects every row and Esc clears the selection while the mouse is over it, and the Drag handle drags all the selected files into another app at once." />
+
+        <TextBlock Style="{StaticResource Section}" Text="Edit with" />
+        <TextBlock Style="{StaticResource Hint}"
+                   Text="The app the Edit button (or Ctrl+E over a card) opens each kind of file in. Leave one empty to choose from Windows' Open with list each time." />
+        <Grid x:Name="EditorsGrid">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition /><RowDefinition /><RowDefinition /><RowDefinition />
+            </Grid.RowDefinitions>
+        </Grid>
+    </StackPanel>
+</UserControl>

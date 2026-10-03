@@ -78,14 +78,14 @@ public class SmartCropTests
     }
 }
 
-public sealed class Pipeline11bRunnerTests : IDisposable
+public sealed class PipelineStepRunnerTests : IDisposable
 {
     private readonly TempDir _dir = new();
     private readonly AppSettings _settings = new();
     private readonly FileOptimisationService _service;
     private readonly PipelineRunner _runner;
 
-    public Pipeline11bRunnerTests()
+    public PipelineStepRunnerTests()
     {
         var paths = new AppPaths(_dir.File("cache"));
         paths.EnsureCreated();

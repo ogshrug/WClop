@@ -43,7 +43,7 @@ public static class HotkeyCatalog
         new(HotkeyAction.BringBack, "Equals", "Bring back the last dismissed result"),
         new(HotkeyAction.ClearAll, "Escape", "Clear all results and stop jobs"),
         new(HotkeyAction.Preview, "Space", "Open the result in your viewer"),
-        new(HotkeyAction.SpeedUp, "X", "Speed up a video (1.25×, 1.5× … 2×, 3× … 10×)"),
+        new(HotkeyAction.SpeedUp, "X", "Speed up a video or audio file (1.25×, 1.5× … 2×, 3× … 10×)"),
     ];
 
     private static readonly Dictionary<string, uint> VirtualKeys = BuildVirtualKeys();
