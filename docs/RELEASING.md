@@ -1,5 +1,7 @@
 # Releasing WClop
 
+For maintainers: how releases are built and published, and the one-time setup for code signing, winget and Scoop. Users don't need any of this; see the [README](../README.md) to install WClop.
+
 A release is a tag. Bump `<Version>` in `Directory.Build.props`, commit, then:
 
 ```powershell

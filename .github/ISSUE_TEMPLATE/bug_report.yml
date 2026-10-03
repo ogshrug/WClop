@@ -1,0 +1,68 @@
+name: Bug report
+description: Something doesn't work the way it should.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report this. Please check the [open issues](https://github.com/ogshrug/WClop/issues) first in case it's already known.
+  - type: input
+    id: version
+    attributes:
+      label: WClop version
+      description: Shown in Settings → General.
+      placeholder: "0.15.0"
+    validations:
+      required: true
+  - type: dropdown
+    id: windows
+    attributes:
+      label: Windows version
+      options:
+        - Windows 11 (x64)
+        - Windows 11 on Arm
+        - Windows 10
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Where does it happen?
+      multiple: true
+      options:
+        - Clipboard
+        - Drop zone
+        - Watched folders
+        - Result cards
+        - Hotkeys
+        - Batch mode
+        - Pipelines
+        - Explorer menu / Send To / Open with
+        - Command line or MCP server
+        - Settings
+        - Installer or updates
+        - Something else
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What you did, what you expected, and what happened instead.
+      placeholder: |
+        1. Copied a screenshot from …
+        2. …
+        Expected: …
+        Got: …
+    validations:
+      required: true
+  - type: textarea
+    id: files
+    attributes:
+      label: File details
+      description: For a file that wasn't optimised properly, its type, size and where it came from. Attach the file if you can share it.
+  - type: textarea
+    id: log
+    attributes:
+      label: Log
+      description: |
+        The relevant part of `%LOCALAPPDATA%\WClop\logs\wclop.log` (tray menu → Open log). It contains file paths, so look it over before pasting.
+      render: text

@@ -1,0 +1,28 @@
+name: Feature request
+description: Suggest an idea or something Clop does that WClop doesn't.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would it solve?
+      description: What you're trying to do, and what gets in the way today.
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would you like to happen?
+      description: How it could work. Rough ideas are fine.
+    validations:
+      required: true
+  - type: input
+    id: clop
+    attributes:
+      label: Does Clop for macOS do this?
+      description: If so, a link to Clop's docs or changelog helps.
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Anything else?
+      description: Workarounds you use now, other apps that do it, screenshots.
